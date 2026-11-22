@@ -176,7 +176,7 @@ img{display:block;max-width:100%}
 </main>
 
 <script>
-const API_URL = 'http://localhost:8000';
+const API_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8000' : '';
 let tipoActual = '';
 
 document.addEventListener('click', function(e){

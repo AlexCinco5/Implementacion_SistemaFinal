@@ -134,7 +134,7 @@ h1{font:700 28px/1.25 Montserrat,sans-serif;margin:0 0 6px}
 </div>
 
 <script>
-const API_URL = 'http://localhost:8000';
+const API_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8000' : '';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const jwt = localStorage.getItem('jwt');

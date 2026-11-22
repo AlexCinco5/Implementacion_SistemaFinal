@@ -240,7 +240,7 @@ button{cursor:pointer;background:none;border:0;padding:0}
 </div>
 
 <script>
-const API_URL = 'http://localhost:8000';
+const API_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8000' : '';
 
 // Control de pestañas (Tabs)
 document.querySelectorAll('.tab').forEach(tab => {

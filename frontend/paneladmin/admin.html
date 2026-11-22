@@ -111,7 +111,7 @@
 </div>
 
 <script>
-const API_URL = 'http://localhost:8000';
+const API_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8000' : '';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };

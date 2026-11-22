@@ -177,7 +177,7 @@ button{font:inherit;cursor:pointer;background:none;border:0;padding:0;color:inhe
 <footer class="footer">© 2026 Entre Nubes · Capulálpam de Méndez, Oaxaca</footer>
 
 <script>
-const API_URL = 'http://localhost:8000';
+const API_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8000' : '';
 
 document.getElementById('saveBtn').addEventListener('click', function(){
   this.classList.toggle('is-saved');

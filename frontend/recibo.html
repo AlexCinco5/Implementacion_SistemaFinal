@@ -135,7 +135,7 @@ button{font:inherit;cursor:pointer;background:none;border:0;padding:0}
 </div>
 
 <script>
-const API_URL = 'http://localhost:8000';
+const API_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8000' : '';
 let intervaloTimer = null;
 
 function iniciarTemporizador(expiraIso) {
