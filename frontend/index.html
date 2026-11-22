@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Entre Nubes · Alojamientos en Capulálpam de Méndez</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --pine:#2d5a3d;--pine-d:#1e3d28;--moss:#4a7c59;--sage:#8aa88f;--mint:#e6efe8;
+  --cream:#fafaf5;--sand:#e8e2d4;--ink:#1a2e20;--muted:#6b7a6f;--line:#e2e8de;--soft:#f2f5ee;
+  --ease:cubic-bezier(.2,0,0,1);--shadow-sm:0 1px 2px rgba(30,61,40,.06);
+  --shadow-md:0 4px 12px rgba(30,61,40,.10);--shadow-lg:0 8px 28px rgba(30,61,40,.16);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.45;color:var(--ink);background:var(--cream);-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+:focus-visible{outline:2px solid var(--pine);outline-offset:2px;border-radius:6px}
+
+.nav{height:80px;display:flex;align-items:center;justify-content:space-between;padding:0 5%;position:sticky;top:0;z-index:60;background:rgba(250,250,245,.85);backdrop-filter:saturate(180%) blur(16px);border-bottom:1px solid var(--line)}
+.logo{font:700 22px/1 Montserrat,sans-serif;color:var(--pine);letter-spacing:-.4px;display:inline-flex;align-items:center;gap:8px;transition:transform .3s var(--ease)}
+.logo:hover{transform:translateY(-1px)}
+.logo svg{width:22px;height:22px;color:var(--pine)}
+.nav-actions{display:flex;align-items:center;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:10px 14px;font-size:13px;font-weight:500;background:rgba(255,255,255,.9);transition:all .25s var(--ease)}
+.pill:hover{box-shadow:var(--shadow-md);border-color:var(--sage);background:#fff}
+.pill svg{width:16px;height:16px;opacity:.85}
+
+.search-wrap{padding:28px 5% 14px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.search-context{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);padding:6px 14px;border-radius:999px;background:var(--mint)}
+.search-context svg{width:14px;height:14px;color:var(--pine);flex:0 0 14px}
+.search-context b{color:var(--pine);font-weight:600}
+.search{width:100%;max-width:780px;background:#fff;border:1px solid var(--line);border-radius:999px;display:flex;align-items:center;transition:box-shadow .3s var(--ease),border-color .3s var(--ease)}
+.search:hover{box-shadow:var(--shadow-md);border-color:var(--sage)}
+.field{position:relative;flex:1 1 0;min-width:0;padding:13px 22px;border-radius:999px;transition:background .25s var(--ease);cursor:pointer}
+.field:hover{background:var(--soft)}
+.field:not(:first-child)::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:1px;height:30px;background:var(--line)}
+.field label{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:2px;color:var(--ink)}
+.field input,.field select{border:0;outline:0;background:transparent;width:100%;font-size:14px;font-weight:500;color:var(--muted);padding:0}
+.search-btn{flex:0 0 auto;width:48px;height:48px;margin:6px 6px 6px 0;border-radius:50%;background:var(--pine);color:#fff;display:grid;place-items:center;transition:all .25s var(--ease)}
+.search-btn svg{width:17px;height:17px}
+.search-btn:hover{background:var(--pine-d);box-shadow:0 4px 14px rgba(45,90,61,.45)}
+
+.filters{display:flex;gap:10px;overflow-x:auto;padding:8px 5% 18px;border-bottom:1px solid var(--line);scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;background:#fff;border:1px solid var(--line);border-radius:999px;padding:9px 15px;font-size:13px;font-weight:500;transition:all .25s var(--ease)}
+.chip:hover,.chip.active{border-color:var(--pine);color:var(--pine);background:var(--mint)}
+.chip svg{width:15px;height:15px;opacity:.7}
+
+.layout{display:grid;grid-template-columns:1fr 42%;gap:28px;padding:28px 5% 40px}
+.section-title{font:600 22px/1.2 Montserrat,sans-serif;letter-spacing:-.3px;margin:0 0 6px}
+.section-title .dot{color:var(--pine);margin-right:6px}
+.meta{color:var(--muted);font-size:14px;margin:4px 0}
+.region-badge{display:inline-flex;align-items:center;gap:6px;background:var(--mint);color:var(--pine);padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;margin-left:8px;vertical-align:middle}
+.region-badge svg{width:12px;height:12px}
+
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:26px 22px;margin-top:20px}
+.card{min-width:0;display:block;border-radius:14px}
+.photo{position:relative;height:245px;border-radius:14px;overflow:hidden;background:var(--soft);transition:box-shadow .35s var(--ease)}
+.photo img{width:100%;height:100%;object-fit:cover;transition:transform .7s var(--ease)}
+.card:hover .photo img{transform:scale(1.06)}
+.card:hover .photo{box-shadow:var(--shadow-md)}
+.tag{position:absolute;left:12px;top:12px;background:#fff;color:var(--ink);padding:6px 11px;border-radius:999px;font-size:12px;font-weight:600;box-shadow:0 2px 8px rgba(30,61,40,.14)}
+.heart{position:absolute;right:12px;top:12px;width:32px;height:32px;display:grid;place-items:center;z-index:2}
+.heart svg{width:26px;height:26px;fill:rgba(30,61,40,.42);stroke:#fff;stroke-width:2;transition:all .25s var(--ease)}
+.heart.is-active svg{fill:var(--pine);stroke:var(--pine)}
+.info{padding-top:12px}
+.title{font-weight:600;font-size:15px}
+.rating-line{display:flex;align-items:center;gap:4px;font-size:14px;margin:4px 0}
+.rating-line .star{color:var(--pine)}
+.desc{color:var(--muted);font-size:14px;margin:6px 0 8px}
+.price-row{font-size:15px}
+.price{font-weight:700;color:var(--ink)}
+
+.map{height:calc(100vh - 240px);min-height:520px;position:sticky;top:110px;border-radius:18px;overflow:hidden;background:#dbe6d3}
+.mapbg{position:absolute;inset:0;background:radial-gradient(120% 80% at 15% 10%,#ddeacd 0 40%,transparent 40%),radial-gradient(90% 70% at 90% 85%,#c3d6bb 0 45%,transparent 45%),linear-gradient(25deg,#b9d1b3 0 22%,#dfe6d2 22% 40%,#bcd1c8 40% 46%,#e7e6d1 46% 74%,#c2d8b8 74%)}
+.road,.road2{position:absolute;background:rgba(255,255,255,.85)}
+.road{width:135%;height:16px;transform:rotate(-12deg);top:48%;left:-10%}
+.road2{width:120%;height:11px;transform:rotate(23deg);top:30%;left:-5%;opacity:.85}
+.pin{position:absolute;background:#fff;color:var(--ink);border-radius:999px;padding:7px 12px;font-size:13px;font-weight:700;box-shadow:0 3px 12px rgba(30,61,40,.22);cursor:pointer;transition:all .3s var(--ease)}
+.pin:hover{transform:scale(1.1) translateY(-2px);background:var(--pine);color:#fff;z-index:2}
+.p1{top:24%;left:24%}.p2{top:52%;left:58%}.p3{top:70%;left:34%}
+.mapnote{position:absolute;bottom:14px;left:14px;right:14px;background:rgba(250,250,245,.94);backdrop-filter:blur(8px);padding:10px 13px;border-radius:10px;font-size:12px;color:var(--muted)}
+
+@media (max-width:900px){.layout{grid-template-columns:1fr}.map{display:none}}
+@media (max-width:640px){
+  .search{flex-direction:column;align-items:stretch;border-radius:24px;padding:6px}
+  .field:not(:first-child)::before{display:none}
+  .search-btn{width:100%;border-radius:16px;margin:4px 0 0;height:46px}
+  .cards{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a class="logo" href="index.html">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
+    Entre Nubes
+  </a>
+  <div class="nav-actions">
+    <button class="pill" type="button">MXN · Español</button>
+    <a class="pill" id="authButton" href="login.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+      <span id="authButtonText">Iniciar sesión</span>
+    </a>
+  </div>
+</nav>
+
+<div class="search-wrap">
+  <div class="search-context">
+    Buscando en <b>Capulálpam de Méndez, Oaxaca</b>
+  </div>
+
+  <form class="search" id="searchForm">
+    <div class="field">
+      <label for="in">Llegada</label>
+      <input id="in" type="date">
+    </div>
+    <div class="field">
+      <label for="out">Salida</label>
+      <input id="out" type="date">
+    </div>
+    <div class="field">
+      <label for="guests">Huéspedes</label>
+      <select id="guests">
+        <option value="1">1+ huéspedes</option>
+        <option value="2" selected>2+ huéspedes</option>
+        <option value="4">4+ huéspedes</option>
+        <option value="6">6+ huéspedes</option>
+      </select>
+    </div>
+    <button class="search-btn" type="submit" aria-label="Buscar">
+      <svg viewBox="0 0 32 32" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round"><circle cx="13" cy="13" r="10"/><path d="m21 21 8 8"/></svg>
+    </button>
+  </form>
+</div>
+
+<div class="filters" role="toolbar">
+  <button class="chip active" data-tipo="" type="button">Todos</button>
+  <button class="chip" data-tipo="cabaña" type="button">Cabañas</button>
+  <button class="chip" data-tipo="casa" type="button">Casas</button>
+  <button class="chip" data-tipo="departamento" type="button">Departamentos</button>
+  <button class="chip" data-tipo="habitacion" type="button">Habitaciones</button>
+</div>
+
+<main class="layout">
+  <section>
+    <h2 class="section-title"><span class="dot">◆</span>Estancias en Capulálpam de Méndez</h2>
+    <p class="meta">
+      Alojamientos disponibles · Pago por transferencia SPEI
+      <span class="region-badge">Oaxaca, México</span>
+    </p>
+
+    <div class="cards" id="lista-cabanas">
+      <p style="grid-column:1/-1;color:var(--muted)">Cargando alojamientos...</p>
+    </div>
+  </section>
+
+  <aside class="map" aria-label="Mapa de la zona">
+    <div class="mapbg">
+      <div class="road"></div>
+      <div class="road2"></div>
+      <div class="pin p1">$2,500</div>
+      <div class="pin p2">$1,850</div>
+      <div class="pin p3">$2,100</div>
+      <div class="mapnote">Mapa ilustrativo de Capulálpam de Méndez · la ubicación exacta se comparte al confirmar la reserva.</div>
+    </div>
+  </aside>
+</main>
+
+<script>
+const API_URL = 'http://localhost:8000';
+let tipoActual = '';
+
+document.addEventListener('click', function(e){
+  const btn = e.target.closest('.heart');
+  if(btn){
+    e.preventDefault();
+    e.stopPropagation();
+    btn.classList.toggle('is-active');
+  }
+});
+
+async function cargarAlojamientos() {
+  const capacidad = document.getElementById('guests').value;
+  const entrada = document.getElementById('in').value;
+  const salida = document.getElementById('out').value;
+
+  const params = new URLSearchParams();
+  if (capacidad) params.append('capacidad', capacidad);
+  if (tipoActual) params.append('tipo', tipoActual);
+
+  const contenedor = document.getElementById('lista-cabanas');
+  contenedor.innerHTML = '<p style="grid-column:1/-1;color:var(--muted)">Buscando alojamientos...</p>';
+
+  try {
+    const response = await fetch(`${API_URL}/api/alojamientos?${params.toString()}`);
+    if (!response.ok) throw new Error('Error en la red');
+    const propiedades = await response.json();
+
+    contenedor.innerHTML = '';
+    if (!propiedades.length) {
+      contenedor.innerHTML = '<p style="grid-column:1/-1;color:var(--muted)">No encontramos alojamientos con esos filtros.</p>';
+      return;
+    }
+
+    const queryFechas = new URLSearchParams();
+    if (entrada) queryFechas.append('entrada', entrada);
+    if (salida) queryFechas.append('salida', salida);
+    if (capacidad) queryFechas.append('huespedes', capacidad);
+
+    propiedades.forEach(prop => {
+      const urlImagen = (prop.imagenes && prop.imagenes.length > 0)
+        ? prop.imagenes[0]
+        : 'https://images.unsplash.com/photo-1542718610-a1d656d1884c?w=900';
+      
+      const linkDetalle = `propiedad.html?id=${prop.id}${queryFechas.toString() ? '&' + queryFechas.toString() : ''}`;
+
+      contenedor.innerHTML += `
+        <a class="card" href="${linkDetalle}">
+          <div class="photo">
+            <img src="${urlImagen}" alt="${prop.titulo}">
+            <span class="tag">${prop.tipo || 'Alojamiento'}</span>
+            <button class="heart" type="button" aria-label="Guardar en favoritos">
+              <svg viewBox="0 0 32 32"><path d="M16 28c7-4.7 14-10.2 14-17a7 7 0 0 0-14-1.4A7 7 0 0 0 2 11c0 6.8 7 12.3 14 17Z"/></svg>
+            </button>
+          </div>
+          <div class="info">
+            <div class="title">${prop.titulo}</div>
+            <div class="meta">${prop.capacidad_huespedes} huéspedes · ${prop.habitaciones} hab · ${prop.banos} baños</div>
+            <div class="rating-line"><span class="star">★</span> Disponible</div>
+            <p class="desc">${prop.descripcion ? prop.descripcion.substring(0, 75) + '...' : prop.direccion}</p>
+            <div class="price-row"><span class="price">$${Number(prop.precio_noche).toLocaleString('es-MX')} MXN</span> <span class="meta" style="display:inline">noche</span></div>
+          </div>
+        </a>
+      `;
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    contenedor.innerHTML = '<p style="grid-column:1/-1;color:#a94a4a;">No se pudo conectar con FastAPI (http://localhost:8000).</p>';
+  }
+}
+
+document.getElementById('searchForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  cargarAlojamientos();
+});
+
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    tipoActual = chip.dataset.tipo;
+    cargarAlojamientos();
+  });
+});
+
+// Control de sesión dinámico
+const gestionarSesion = () => {
+  const authButton = document.getElementById('authButton');
+  const authButtonText = document.getElementById('authButtonText');
+  const usuarioActivo = localStorage.getItem('reserva_nombre');
+  const rol = localStorage.getItem('user_rol');
+
+  if (usuarioActivo) {
+    if (rol === 'admin') authButton.href = 'paneladmin/admin.html';
+    else if (rol === 'anfitrion') authButton.href = 'panelanfitrion/alojamientosa.html';
+    else authButton.href = 'usuario.html';
+    authButtonText.textContent = usuarioActivo.split(' ')[0];
+  } else {
+    authButton.href = 'login.html';
+    authButtonText.textContent = 'Iniciar sesión';
+  }
+};
+
+gestionarSesion();
+cargarAlojamientos();
+</script>
+</body>
+</html>

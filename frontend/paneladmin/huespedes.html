@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Huéspedes · Entre Nubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="admin.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
+      <span>Entre Nubes<small>Panel admin</small></span>
+    </a>
+
+    <div class="nav-group">
+      <div class="nav-label">General</div>
+      <a class="nav-link" href="admin.html">Resumen</a>
+      <a class="nav-link" href="alojamientos.html">Alojamientos</a>
+      <a class="nav-link" href="reservaciones.html">Reservaciones</a>
+      <a class="nav-link" href="anfitriones.html">Anfitriones</a>
+      <a class="nav-link active" href="huespedes.html">Huéspedes</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Contenido</div>
+      <a class="nav-link" href="resenas.html">Reseñas</a>
+      <a class="nav-link" href="reportes.html">Reportes</a>
+      <a class="nav-link" href="configuracion.html">Configuración</a>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="avatar-sm" id="adminAvatar">AD</div>
+      <div class="who" id="adminName">Admin<small>Panel general</small></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Huéspedes</h1>
+        <div class="date" id="subHuesp">Cargando huéspedes...</div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Total huéspedes</div><div class="value" id="stTotalH">0</div></div>
+      <div class="stat"><div class="label">Con reservas</div><div class="value" id="stConRes">0</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>Lista de huéspedes</h3></div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Huésped</th>
+            <th>Contacto</th>
+            <th>Reservas</th>
+            <th>Último estado</th>
+            <th>Último viaje</th>
+          </tr>
+        </thead>
+        <tbody id="tablaHuespedes">
+          <tr><td colspan="5" style="text-align:center;color:var(--muted)">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script>
+const API_URL = 'http://localhost:8000';
+const jwt = localStorage.getItem('jwt');
+const rol = localStorage.getItem('user_rol');
+
+if (!jwt || rol !== 'admin') window.location.href = '../login.html';
+
+const adminName = localStorage.getItem('reserva_nombre') || 'Admin';
+document.getElementById('adminName').innerHTML = `${adminName}<small>Panel general</small>`;
+document.getElementById('adminAvatar').textContent = adminName.substring(0, 2).toUpperCase();
+
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch(`${API_URL}/api/admin/huespedes`, {
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    const lista = await res.json();
+
+    document.getElementById('stTotalH').textContent = lista.length;
+    document.getElementById('stConRes').textContent = lista.filter(h => h.total_reservas > 0).length;
+    document.getElementById('subHuesp').textContent = `${lista.length} huéspedes registrados en la plataforma`;
+
+    const tbody = document.getElementById('tablaHuespedes');
+    if (!lista.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">No hay huéspedes registrados.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = lista.map(h => {
+      const ini = h.nombre_completo.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+      return `
+        <tr>
+          <td>
+            <div class="guest">
+              <div class="avatar-tiny a2">${ini}</div>
+              <div><b>${h.nombre_completo}</b><small>${h.telefono || 'Sin teléfono'}</small></div>
+            </div>
+          </td>
+          <td>${h.correo}</td>
+          <td>${h.total_reservas} reservas</td>
+          <td><span class="badge confirmed">${h.ultimo_estado}</span></td>
+          <td>${h.ultimo_viaje}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (e) {
+    console.error(e);
+  }
+});
+</script>
+</body>
+</html>

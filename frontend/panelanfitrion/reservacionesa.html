@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reservaciones · Entre Nubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="../index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
+      <span>Entre Nubes<small>Panel anfitrión</small></span>
+    </a>
+
+    <div class="nav-group">
+      <div class="nav-label">General</div>
+      <a class="nav-link" href="alojamientosa.html">Alojamientos</a>
+      <a class="nav-link active" href="reservacionesa.html">Reservaciones <span class="count" id="navCountRes">0</span></a>
+      <a class="nav-link" href="huespedesa.html">Huéspedes</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Contenido</div>
+      <a class="nav-link" href="resenasa.html">Reseñas</a>
+      <a class="nav-link" href="reportesa.html">Reportes</a>
+      <a class="nav-link" href="configuraciona.html">Configuración</a>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="avatar-sm" id="sideAvatar">--</div>
+      <div class="who" id="sideName">Cargando...<small>Anfitrión</small></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Reservaciones</h1>
+        <div class="date" id="subRes">Cargando historial...</div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Confirmadas</div><div class="value" id="stConf">0</div></div>
+      <div class="stat"><div class="label">Pendientes / En revisión</div><div class="value" id="stPend">0</div></div>
+      <div class="stat"><div class="label">Canceladas / Expiradas</div><div class="value" id="stCanc">0</div></div>
+      <div class="stat"><div class="label">Ingresos confirmados</div><div class="value" id="stIng">$0</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>Historial de reservaciones</h3></div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Huésped</th>
+            <th>Alojamiento</th>
+            <th>Fechas</th>
+            <th>Estado</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="tablaReservas">
+          <tr><td colspan="5" style="text-align:center;color:#6b7a6f">Cargando reservaciones...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="admin-footer">
+      <span>© 2026 Entre Nubes · Panel interno</span>
+      <span><a href="../index.html">Ir al sitio público</a></span>
+    </div>
+  </main>
+</div>
+
+<script>
+const API_URL = 'http://localhost:8000';
+const jwt = localStorage.getItem('jwt');
+const rol = localStorage.getItem('user_rol');
+
+if (!jwt || (rol !== 'anfitrion' && rol !== 'admin')) {
+  window.location.href = '../login.html';
+}
+
+const nombreGuardado = localStorage.getItem('reserva_nombre') || 'Anfitrión';
+document.getElementById('sideName').innerHTML = `${nombreGuardado}<small>Anfitrión</small>`;
+document.getElementById('sideAvatar').textContent = nombreGuardado.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+
+function badgeEstado(est) {
+  if (est === 'confirmada' || est === 'completada') return '<span class="badge confirmed">Confirmada</span>';
+  if (est === 'en_revision') return '<span class="badge pending">En revisión (24h)</span>';
+  if (est === 'pendiente_pago') return '<span class="badge pending">Esperando SPEI (15m)</span>';
+  return `<span class="badge cancelled">${est === 'expirada' ? 'Expirada' : 'Cancelada'}</span>`;
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch(`${API_URL}/api/anfitrion/reservaciones`, {
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    const reservas = await res.json();
+
+    document.getElementById('navCountRes').textContent = reservas.length;
+    document.getElementById('subRes').textContent = `${reservas.length} reservaciones en tus alojamientos`;
+
+    const conf = reservas.filter(r => r.estado === 'confirmada' || r.estado === 'completada');
+    const pend = reservas.filter(r => r.estado === 'pendiente_pago' || r.estado === 'en_revision');
+    const canc = reservas.filter(r => r.estado === 'cancelada' || r.estado === 'expirada');
+    const ingresos = conf.reduce((acc, r) => acc + Number(r.total_pagar), 0);
+
+    document.getElementById('stConf').textContent = conf.length;
+    document.getElementById('stPend').textContent = pend.length;
+    document.getElementById('stCanc').textContent = canc.length;
+    document.getElementById('stIng').textContent = `$${ingresos.toLocaleString('es-MX')}`;
+
+    const tbody = document.getElementById('tablaReservas');
+    if (!reservas.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#6b7a6f">Aún no tienes reservaciones.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = reservas.map(r => {
+      const h = r.perfiles?.nombre_completo || 'Huésped';
+      const ini = h.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+      return `
+        <tr>
+          <td>
+            <div class="guest">
+              <div class="avatar-tiny a1">${ini}</div>
+              <div><b>${h}</b><small>${r.num_huespedes} huéspedes</small></div>
+            </div>
+          </td>
+          <td>${r.alojamientos?.titulo || 'Alojamiento'}</td>
+          <td>${r.fecha_entrada} – ${r.fecha_salida}</td>
+          <td>${badgeEstado(r.estado)}</td>
+          <td class="price-cell">$${Number(r.total_pagar).toLocaleString('es-MX')}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (e) {
+    console.error(e);
+  }
+});
+</script>
+</body>
+</html>

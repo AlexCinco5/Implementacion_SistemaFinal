@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crear Cuenta · Entre Nubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style_auth.css">
+</head>
+<body>
+
+<div class="auth-card">
+  <!-- Logotipo -->
+  <a class="auth-brand" href="index.html" aria-label="Entre Nubes">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/>
+    </svg>
+    <span>Entre Nubes<small>Huéspedes & Clientes</small></span>
+  </a>
+
+  <div class="auth-header">
+    <h1>Crea tu cuenta</h1>
+    <p>Empieza a reservar tus estancias inolvidables</p>
+  </div>
+
+  <form id="registerForm">
+    <div class="form-row">
+      <div class="form-group">
+        <label for="firstName">Nombre</label>
+        <input type="text" id="firstName" name="firstName" required placeholder="Paulina" />
+      </div>
+      <div class="form-group">
+        <label for="lastName">Apellidos</label>
+        <input type="text" id="lastName" name="lastName" required placeholder="Pastrana" />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="email">Correo electrónico</label>
+      <input type="email" id="email" name="email" required placeholder="tu@correo.com" />
+    </div>
+
+    <div class="form-group">
+      <label for="phone">Teléfono / WhatsApp</label>
+      <input type="tel" id="phone" name="phone" required placeholder="+52 951 123 4567" />
+    </div>
+
+    <div class="form-group">
+      <label for="password">Contraseña</label>
+      <input type="password" id="password" name="password" required placeholder="Mínimo 8 caracteres" minlength="8" />
+    </div>
+
+    <button type="submit" class="btn-primary">Registrarme</button>
+  </form>
+
+  <div class="auth-footer">
+    ¿Ya tienes una cuenta? <a href="login.html">Inicia sesión aquí</a>
+  </div>
+</div>
+
+<script>
+const API_URL = 'http://localhost:8000';
+
+document.getElementById('registerForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const firstName = document.getElementById('firstName').value.trim();
+  const lastName = document.getElementById('lastName').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const phone = document.getElementById('phone').value.trim();
+  const password = document.getElementById('password').value;
+  const fullName = `${firstName} ${lastName}`;
+
+  if (password.length < 8) {
+    alert('La contraseña debe tener al menos 8 caracteres.');
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/api/auth/registro`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre_completo: fullName,
+        correo: email,
+        telefono: phone,
+        password: password
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.jwt) {
+      localStorage.setItem('jwt', data.jwt);
+      localStorage.setItem('user_id', data.user.id);
+      localStorage.setItem('user_rol', data.user.rol);
+      localStorage.setItem('reserva_nombre', data.user.nombre_completo);
+      localStorage.setItem('reserva_email', data.user.correo);
+      localStorage.setItem('reserva_telefono', data.user.telefono || '');
+      
+      alert(`¡Cuenta creada con éxito para ${fullName}!`);
+      window.location.href = 'usuario.html';
+    } else if (response.ok) {
+      alert('Cuenta creada. Por favor inicia sesión.');
+      window.location.href = 'login.html';
+    } else {
+      alert('Error al registrar: ' + (data.detail || 'Revisa tus datos'));
+    }
+  } catch (error) {
+    console.error('Error de red:', error);
+    alert('No se pudo conectar con el servidor FastAPI.');
+  }
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Configuración · Entre Nubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  .config-section{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:16px}
+  .config-section h3{font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .config-section h3::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--pine)}
+  .config-section .desc{font-size:13px;color:var(--muted);margin-bottom:18px}
+  .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .form-field{display:flex;flex-direction:column;gap:6px}
+  .form-field label{font-size:12px;font-weight:600;color:var(--ink)}
+  .form-field input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--soft);font-size:13.5px}
+  .form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+  @media (max-width:640px){.form-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="../index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
+      <span>Entre Nubes<small>Panel anfitrión</small></span>
+    </a>
+
+    <div class="nav-group">
+      <div class="nav-label">General</div>
+      <a class="nav-link" href="alojamientosa.html">Alojamientos</a>
+      <a class="nav-link" href="reservacionesa.html">Reservaciones</a>
+      <a class="nav-link" href="huespedesa.html">Huéspedes</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Contenido</div>
+      <a class="nav-link" href="resenasa.html">Reseñas</a>
+      <a class="nav-link" href="reportesa.html">Reportes</a>
+      <a class="nav-link active" href="configuraciona.html">Configuración</a>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="avatar-sm" id="sideAvatar">--</div>
+      <div class="who" id="sideName">Cargando...<small>Anfitrión</small></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Configuración</h1>
+        <div class="date">Ajustes de tu cuenta de anfitrión</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn" type="button" onclick="cerrarSesion()" style="color:#a94a4a">Cerrar sesión</button>
+    </div>
+
+    <form id="formConfig">
+      <div class="config-section">
+        <h3>Perfil de anfitrión</h3>
+        <p class="desc">Información de tu cuenta.</p>
+        <div class="form-grid">
+          <div class="form-field">
+            <label for="nombre">Nombre completo</label>
+            <input id="nombre" type="text" required>
+          </div>
+          <div class="form-field">
+            <label for="email">Correo electrónico</label>
+            <input id="email" type="email" disabled>
+          </div>
+          <div class="form-field">
+            <label for="telefono">Teléfono</label>
+            <input id="telefono" type="tel">
+          </div>
+          <div class="form-field">
+            <label for="rol">Rol</label>
+            <input id="rol" type="text" value="Anfitrión" disabled>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn primary" type="submit">Guardar cambios</button>
+      </div>
+    </form>
+  </main>
+</div>
+
+<script>
+const API_URL = 'http://localhost:8000';
+const jwt = localStorage.getItem('jwt');
+const rol = localStorage.getItem('user_rol');
+
+if (!jwt || (rol !== 'anfitrion' && rol !== 'admin')) {
+  window.location.href = '../login.html';
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const res = await fetch(`${API_URL}/api/usuarios/me`, {
+    headers: { 'Authorization': `Bearer ${jwt}` }
+  });
+  const perfil = await res.json();
+  document.getElementById('nombre').value = perfil.nombre_completo;
+  document.getElementById('email').value = perfil.correo;
+  document.getElementById('telefono').value = perfil.telefono || '';
+  document.getElementById('rol').value = perfil.rol;
+
+  document.getElementById('sideName').innerHTML = `${perfil.nombre_completo}<small>${perfil.rol}</small>`;
+  document.getElementById('sideAvatar').textContent = perfil.nombre_completo.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+});
+
+document.getElementById('formConfig').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const res = await fetch(`${API_URL}/api/usuarios/me`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+    body: JSON.stringify({
+      nombre_completo: document.getElementById('nombre').value.trim(),
+      telefono: document.getElementById('telefono').value.trim()
+    })
+  });
+  if (res.ok) {
+    localStorage.setItem('reserva_nombre', document.getElementById('nombre').value.trim());
+    alert('Perfil actualizado.');
+    location.reload();
+  }
+});
+
+function cerrarSesion() {
+  localStorage.clear();
+  window.location.href = '../login.html';
+}
+</script>
+</body>
+</html>

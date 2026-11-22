@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Alojamientos · Entre Nubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  .modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(26,46,32,.55);backdrop-filter:blur(4px);display:none;align-items:flex-start;justify-content:center;padding:32px 16px;overflow-y:auto}
+  .modal-overlay.open{display:flex}
+  .modal{background:#fff;border-radius:16px;width:100%;max-width:720px;box-shadow:0 20px 60px rgba(30,61,40,.3);overflow:hidden;margin:auto}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid #e2e8de}
+  .modal-head h2{font-size:18px;font-weight:700;font-family:Montserrat,sans-serif}
+  .modal-close{width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:18px}
+  .modal-body{padding:22px 24px;display:flex;flex-direction:column;gap:16px}
+  .modal-foot{padding:16px 24px;border-top:1px solid #e2e8de;display:flex;justify-content:flex-end;gap:8px;background:#f2f5ee}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .form-field{display:flex;flex-direction:column;gap:6px}
+  .form-field.full{grid-column:1/-1}
+  .form-field label{font-size:12.5px;font-weight:600}
+  .form-field input,.form-field select,.form-field textarea{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #e2e8de;background:#f2f5ee;font-size:13.5px}
+  .upload-zone{border:2px dashed #e2e8de;border-radius:12px;padding:20px;text-align:center;cursor:pointer;background:#f2f5ee}
+  .preview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:10px;margin-top:10px}
+  .preview-item{aspect-ratio:1;border-radius:8px;overflow:hidden}
+  .preview-item img{width:100%;height:100%;object-fit:cover}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="admin.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
+      <span>Entre Nubes<small>Panel admin</small></span>
+    </a>
+
+    <div class="nav-group">
+      <div class="nav-label">General</div>
+      <a class="nav-link" href="admin.html">Resumen</a>
+      <a class="nav-link active" href="alojamientos.html">Alojamientos <span class="count" id="navPropCount">0</span></a>
+      <a class="nav-link" href="reservaciones.html">Reservaciones</a>
+      <a class="nav-link" href="anfitriones.html">Anfitriones</a>
+      <a class="nav-link" href="huespedes.html">Huéspedes</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Contenido</div>
+      <a class="nav-link" href="resenas.html">Reseñas</a>
+      <a class="nav-link" href="reportes.html">Reportes</a>
+      <a class="nav-link" href="configuracion.html">Configuración</a>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="avatar-sm" id="adminAvatar">AD</div>
+      <div class="who" id="adminName">Admin<small>Panel general</small></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Alojamientos</h1>
+        <div class="date"><span id="txtTotal">0</span> propiedades registradas</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="top-actions">
+        <button class="btn primary" type="button" id="btnNuevoAlojamiento">+ Nuevo alojamiento</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Total propiedades</div><div class="value" id="statTotal">0</div></div>
+      <div class="stat"><div class="label">Disponibles ahora</div><div class="value" id="statDisponibles">0</div></div>
+      <div class="stat"><div class="label">Precio promedio</div><div class="value" id="statPrecio">$0</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>Todas las propiedades</h3></div>
+      <div class="listings" id="propiedadesList">
+        <p style="text-align:center;padding:20px 0;color:var(--muted)">Cargando inventario...</p>
+      </div>
+    </div>
+
+    <div class="admin-footer">
+      <span>© 2026 Entre Nubes · Panel interno</span>
+      <span><a href="../index.html">Ir al sitio público</a></span>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL: NUEVO ALOJAMIENTO -->
+<div class="modal-overlay" id="modalAlojamiento">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Nuevo alojamiento</h2>
+      <button class="modal-close" type="button" data-close>✕</button>
+    </div>
+
+    <form id="formAlojamiento" class="modal-body" enctype="multipart/form-data">
+      <div class="form-grid">
+        <div class="form-field full">
+          <label for="nombre">Nombre del lugar *</label>
+          <input id="nombre" name="nombre" type="text" placeholder="Ej: Cabaña Mirador" required>
+        </div>
+        <div class="form-field">
+          <label for="tipo">Tipo</label>
+          <select id="tipo" name="tipo">
+            <option value="cabaña">Cabaña</option>
+            <option value="casa">Casa</option>
+            <option value="departamento">Departamento</option>
+            <option value="habitacion">Habitación</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="precio">Precio por noche (MXN) *</label>
+          <input id="precio" name="precio" type="number" min="100" step="50" placeholder="2500" required>
+        </div>
+        <div class="form-field full">
+          <label for="direccion">Dirección *</label>
+          <input id="direccion" name="direccion" type="text" placeholder="Ej: Camino al Mirador s/n, Capulálpam" required>
+        </div>
+      </div>
+
+      <div class="form-field full">
+        <label>Imágenes del alojamiento *</label>
+        <div class="upload-zone" id="uploadZone">
+          <b>Haz clic para subir imágenes a Supabase Storage</b>
+          <input type="file" id="inputImagenes" name="imagenes" accept="image/*" multiple hidden required>
+        </div>
+        <div class="preview-grid" id="previewGrid"></div>
+      </div>
+
+      <div class="form-field full">
+        <label for="acerca">Descripción *</label>
+        <textarea id="acerca" name="acerca" rows="3" placeholder="Describe el alojamiento..." required></textarea>
+      </div>
+    </form>
+
+    <div class="modal-foot">
+      <button class="btn" type="button" data-close>Cancelar</button>
+      <button class="btn primary" type="submit" form="formAlojamiento" id="btnSubmitForm">Guardar alojamiento</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_URL = 'http://localhost:8000';
+const jwt = localStorage.getItem('jwt');
+const rol = localStorage.getItem('user_rol');
+
+if (!jwt || rol !== 'admin') {
+  window.location.href = '../login.html';
+}
+
+const adminName = localStorage.getItem('reserva_nombre') || 'Admin';
+document.getElementById('adminName').innerHTML = `${adminName}<small>Panel general</small>`;
+document.getElementById('adminAvatar').textContent = adminName.substring(0, 2).toUpperCase();
+
+async function cargarAlojamientos() {
+  try {
+    const res = await fetch(`${API_URL}/api/anfitrion/alojamientos`, {
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    const propiedades = await res.json();
+
+    document.getElementById('navPropCount').textContent = propiedades.length;
+    document.getElementById('txtTotal').textContent = propiedades.length;
+    document.getElementById('statTotal').textContent = propiedades.length;
+    document.getElementById('statDisponibles').textContent = propiedades.filter(p => p.activo).length;
+
+    const promedio = propiedades.length
+      ? Math.round(propiedades.reduce((acc, p) => acc + Number(p.precio_noche), 0) / propiedades.length)
+      : 0;
+    document.getElementById('statPrecio').textContent = `$${promedio.toLocaleString('es-MX')}`;
+
+    const lista = document.getElementById('propiedadesList');
+    if (!propiedades.length) {
+      lista.innerHTML = '<p style="text-align:center;padding:20px;color:var(--muted)">No hay propiedades registradas.</p>';
+      return;
+    }
+
+    lista.innerHTML = propiedades.map(prop => {
+      const imgUrl = (prop.imagenes && prop.imagenes.length)
+        ? prop.imagenes[0]
+        : 'https://images.unsplash.com/photo-1542718610-a1d656d1884c?w=200';
+      return `
+        <div class="listing">
+          <div class="thumb"><img src="${imgUrl}" alt="${prop.titulo}"></div>
+          <div class="info">
+            <b>${prop.titulo}</b>
+            <small>${prop.tipo} · ${prop.capacidad_huespedes} huéspedes · ${prop.direccion}</small>
+          </div>
+          <div class="stats-mini"><div><b>$${Number(prop.precio_noche).toLocaleString('es-MX')}</b> por noche</div></div>
+          <div class="mini-actions">
+            <span class="status-dot on">Publicado</span>
+            <a class="btn" href="../propiedad.html?id=${prop.id}" target="_blank" style="margin-left:8px">Ver</a>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+cargarAlojamientos();
+
+const overlay = document.getElementById('modalAlojamiento');
+const form = document.getElementById('formAlojamiento');
+const inputImgs = document.getElementById('inputImagenes');
+const previewGrid = document.getElementById('previewGrid');
+const btnSubmitForm = document.getElementById('btnSubmitForm');
+
+document.getElementById('btnNuevoAlojamiento').addEventListener('click', () => overlay.classList.add('open'));
+overlay.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => overlay.classList.remove('open')));
+document.getElementById('uploadZone').addEventListener('click', () => inputImgs.click());
+
+inputImgs.addEventListener('change', () => {
+  previewGrid.innerHTML = '';
+  Array.from(inputImgs.files).slice(0, 6).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      previewGrid.innerHTML += `<div class="preview-item"><img src="${e.target.result}"></div>`;
+    };
+    reader.readAsDataURL(file);
+  });
+});
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  btnSubmitForm.disabled = true;
+  btnSubmitForm.textContent = 'Guardando...';
+
+  const formData = new FormData(form);
+  try {
+    const res = await fetch(`${API_URL}/api/anfitrion/alojamientos`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${jwt}` },
+      body: formData
+    });
+    if (res.ok) {
+      alert('¡Alojamiento creado con éxito!');
+      form.reset();
+      previewGrid.innerHTML = '';
+      overlay.classList.remove('open');
+      cargarAlojamientos();
+    } else {
+      const err = await res.json();
+      alert(err.detail || 'Error al guardar.');
+    }
+  } catch (err) {
+    alert('Error de conexión con FastAPI.');
+  } finally {
+    btnSubmitForm.disabled = false;
+    btnSubmitForm.textContent = 'Guardar alojamiento';
+  }
+});
+</script>
+</body>
+</html>

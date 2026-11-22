@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Panel de administración · Entre Nubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="admin.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
+      <span>Entre Nubes<small>Panel admin</small></span>
+    </a>
+
+    <div class="nav-group">
+      <div class="nav-label">General</div>
+      <a class="nav-link active" href="admin.html">Resumen</a>
+      <a class="nav-link" href="alojamientos.html">Alojamientos <span class="count" id="countPropiedades">0</span></a>
+      <a class="nav-link" href="reservaciones.html">Reservaciones <span class="count" id="countReservas">0</span></a>
+      <a class="nav-link" href="anfitriones.html">Anfitriones</a>
+      <a class="nav-link" href="huespedes.html">Huéspedes</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Contenido</div>
+      <a class="nav-link" href="resenas.html">Reseñas</a>
+      <a class="nav-link" href="reportes.html">Reportes</a>
+      <a class="nav-link" href="configuracion.html">Configuración</a>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="avatar-sm" id="adminAvatar">AD</div>
+      <div class="who"><span id="adminName">Administrador</span><small>Panel general</small></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Resumen general</h1>
+        <div class="date" id="fechaActual">Cargando fecha...</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="top-actions">
+        <a class="btn primary" href="reservaciones.html" id="btnPendientes">Validar SPEI (0)</a>
+        <button class="btn" type="button" onclick="cerrarSesionAdmin()">Salir</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="label">Alojamientos activos</div>
+        <div class="value" id="statAlojamientos">0</div>
+      </div>
+      <div class="stat">
+        <div class="label">Por validar (SPEI 24h)</div>
+        <div class="value" id="statPorValidar" style="color:#c8912f">0</div>
+      </div>
+      <div class="stat">
+        <div class="label">Reservaciones totales</div>
+        <div class="value" id="statReservas">0</div>
+      </div>
+      <div class="stat">
+        <div class="label">Ingresos confirmados</div>
+        <div class="value" id="statIngresos">$0</div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:20px">
+      <div class="panel-head">
+        <h3>Reservaciones recientes</h3>
+        <a class="link" href="reservaciones.html">Ver y validar todas →</a>
+      </div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Huésped</th>
+            <th>Alojamiento</th>
+            <th>Fechas</th>
+            <th>Estado</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="tablaReservas">
+          <tr><td colspan="5" style="text-align:center;color:var(--muted)">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Alojamientos registrados</h3>
+        <a class="link" href="alojamientos.html">Ver todos →</a>
+      </div>
+      <div class="listings" id="listaPropiedades">
+        <p style="color:var(--muted);padding:10px 0">Cargando...</p>
+      </div>
+    </div>
+
+    <div class="admin-footer">
+      <span>© 2026 Entre Nubes · Panel interno</span>
+      <span><a href="../index.html">Ir al sitio público</a></span>
+    </div>
+  </main>
+</div>
+
+<script>
+const API_URL = 'http://localhost:8000';
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+  const fechaStr = new Date().toLocaleDateString('es-MX', opcionesFecha);
+  document.getElementById('fechaActual').textContent = fechaStr.charAt(0).toUpperCase() + fechaStr.slice(1);
+
+  const jwt = localStorage.getItem('jwt');
+  const rol = localStorage.getItem('user_rol');
+  if (!jwt || rol !== 'admin') {
+    alert('Acceso exclusivo para administradores.');
+    window.location.href = '../login.html';
+    return;
+  }
+
+  const adminName = localStorage.getItem('reserva_nombre') || 'Administrador';
+  document.getElementById('adminName').textContent = adminName;
+  document.getElementById('adminAvatar').textContent = adminName.substring(0, 2).toUpperCase();
+
+  try {
+    const res = await fetch(`${API_URL}/api/admin/resumen`, {
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    if (!res.ok) throw new Error('Error al cargar resumen');
+    const data = await res.json();
+
+    const propiedades = data.alojamientos || [];
+    const reservas = data.reservaciones || [];
+    const enRevision = reservas.filter(r => r.estado === 'en_revision');
+    const confirmadas = reservas.filter(r => r.estado === 'confirmada' || r.estado === 'completada');
+    const ingresos = confirmadas.reduce((acc, r) => acc + Number(r.total_pagar), 0);
+
+    document.getElementById('statAlojamientos').textContent = propiedades.length;
+    document.getElementById('countPropiedades').textContent = propiedades.length;
+    document.getElementById('statPorValidar').textContent = enRevision.length;
+    document.getElementById('btnPendientes').textContent = `Validar SPEI (${enRevision.length})`;
+    document.getElementById('statReservas').textContent = reservas.length;
+    document.getElementById('countReservas').textContent = reservas.length;
+    document.getElementById('statIngresos').textContent = `$${ingresos.toLocaleString('es-MX')}`;
+
+    const tbody = document.getElementById('tablaReservas');
+    tbody.innerHTML = reservas.length ? reservas.slice(0, 6).map(r => {
+      const h = r.perfiles?.nombre_completo || 'Huésped';
+      let badge = `<span class="badge pending">${r.estado}</span>`;
+      if (r.estado === 'confirmada') badge = '<span class="badge confirmed">Confirmada</span>';
+      else if (r.estado === 'en_revision') badge = '<span class="badge pending">Comprobante por validar</span>';
+      else if (r.estado === 'pendiente_pago') badge = '<span class="badge pending">Esperando SPEI (15m)</span>';
+      else if (r.estado === 'cancelada' || r.estado === 'expirada') badge = `<span class="badge cancelled">${r.estado}</span>`;
+
+      return `
+        <tr>
+          <td><b>${h}</b></td>
+          <td>${r.alojamientos?.titulo || 'Alojamiento'}</td>
+          <td>${r.fecha_entrada} al ${r.fecha_salida}</td>
+          <td>${badge}</td>
+          <td class="price-cell">$${Number(r.total_pagar).toLocaleString('es-MX')}</td>
+        </tr>
+      `;
+    }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Sin reservaciones aún.</td></tr>';
+
+    const listAloj = document.getElementById('listaPropiedades');
+    listAloj.innerHTML = propiedades.length ? propiedades.slice(0, 5).map(p => {
+      const img = (p.imagenes && p.imagenes.length) ? p.imagenes[0] : 'https://images.unsplash.com/photo-1542718610-a1d656d1884c?w=200';
+      return `
+        <div class="listing">
+          <div class="thumb"><img src="${img}" alt="${p.titulo}"></div>
+          <div class="info">
+            <b>${p.titulo}</b>
+            <small>${p.capacidad_huespedes} huéspedes · ${p.habitaciones} hab · ${p.ciudad || 'Capulálpam'}</small>
+          </div>
+          <div class="stats-mini"><div><b>$${Number(p.precio_noche).toLocaleString('es-MX')}</b>por noche</div></div>
+        </div>
+      `;
+    }).join('') : '<p style="color:var(--muted)">No hay alojamientos registrados.</p>';
+  } catch (e) {
+    console.error(e);
+  }
+});
+
+function cerrarSesionAdmin() {
+  localStorage.clear();
+  window.location.href = '../login.html';
+}
+</script>
+</body>
+</html>

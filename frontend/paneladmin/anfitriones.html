@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Anfitriones · Entre Nubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s}
+  .modal-overlay.active{opacity:1;pointer-events:auto}
+  .modal-content{background:#fff;border-radius:12px;padding:24px;width:90%;max-width:420px}
+  .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .close-btn{background:none;border:0;font-size:22px;cursor:pointer}
+  .form-group{margin-bottom:14px;display:flex;flex-direction:column;gap:5px}
+  .form-group label{font-size:13px;font-weight:600}
+  .form-group input{padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="admin.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
+      <span>Entre Nubes<small>Panel admin</small></span>
+    </a>
+
+    <div class="nav-group">
+      <div class="nav-label">General</div>
+      <a class="nav-link" href="admin.html">Resumen</a>
+      <a class="nav-link" href="alojamientos.html">Alojamientos</a>
+      <a class="nav-link" href="reservaciones.html">Reservaciones</a>
+      <a class="nav-link active" href="anfitriones.html">Anfitriones</a>
+      <a class="nav-link" href="huespedes.html">Huéspedes</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Contenido</div>
+      <a class="nav-link" href="resenas.html">Reseñas</a>
+      <a class="nav-link" href="reportes.html">Reportes</a>
+      <a class="nav-link" href="configuracion.html">Configuración</a>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="avatar-sm" id="adminAvatar">AD</div>
+      <div class="who" id="adminName">Admin<small>Panel general</small></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Anfitriones</h1>
+        <div class="date" id="subHosts">Cargando anfitriones...</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="top-actions">
+        <button class="btn primary" id="openModalBtn" type="button">+ Añadir anfitrión</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Total anfitriones</div><div class="value" id="totalHostsCount">0</div></div>
+      <div class="stat"><div class="label">Propiedades gestionadas</div><div class="value" id="totalPropsHosts">0</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>Lista de anfitriones</h3></div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Anfitrión</th>
+            <th>Propiedades</th>
+            <th>Contacto</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="hostsTableBody">
+          <tr><td colspan="4" style="text-align:center;color:var(--muted)">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="hostModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Añadir Anfitrión</h2>
+      <button type="button" class="close-btn" id="closeModalBtn">&times;</button>
+    </div>
+    <form id="addHostForm">
+      <div class="form-group">
+        <label for="fullName">Nombre completo</label>
+        <input type="text" id="fullName" required placeholder="Ej. Ana Beltrán">
+      </div>
+      <div class="form-group">
+        <label for="email">Correo electrónico</label>
+        <input type="email" id="email" required placeholder="ejemplo@entrenubes.mx">
+      </div>
+      <div class="form-group">
+        <label for="telefono">Teléfono</label>
+        <input type="tel" id="telefono" placeholder="+52 951 123 4567">
+      </div>
+      <div class="form-group">
+        <label for="password">Contraseña inicial (mín. 8 caracteres)</label>
+        <input type="password" id="password" minlength="8" required placeholder="••••••••">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="cancelModalBtn">Cancelar</button>
+        <button type="submit" class="btn primary" id="btnGuardarHost">Crear cuenta</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const API_URL = 'http://localhost:8000';
+const jwt = localStorage.getItem('jwt');
+const rol = localStorage.getItem('user_rol');
+
+if (!jwt || rol !== 'admin') window.location.href = '../login.html';
+
+const adminName = localStorage.getItem('reserva_nombre') || 'Admin';
+document.getElementById('adminName').innerHTML = `${adminName}<small>Panel general</small>`;
+document.getElementById('adminAvatar').textContent = adminName.substring(0, 2).toUpperCase();
+
+async function cargarAnfitriones() {
+  try {
+    const res = await fetch(`${API_URL}/api/admin/anfitriones`, {
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    const lista = await res.json();
+
+    document.getElementById('totalHostsCount').textContent = lista.length;
+    document.getElementById('subHosts').textContent = `${lista.length} anfitriones registrados`;
+    document.getElementById('totalPropsHosts').textContent = lista.reduce((a, b) => a + (b.total_propiedades || 0), 0);
+
+    const tbody = document.getElementById('hostsTableBody');
+    if (!lista.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Aún no hay anfitriones registrados.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = lista.map(h => {
+      const ini = h.nombre_completo.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+      return `
+        <tr>
+          <td>
+            <div class="guest">
+              <div class="avatar-tiny a1">${ini}</div>
+              <div><b>${h.nombre_completo}</b><small>${h.telefono || 'Sin teléfono'}</small></div>
+            </div>
+          </td>
+          <td>${h.total_propiedades} propiedades</td>
+          <td>${h.correo}</td>
+          <td><span class="badge ${h.activo ? 'confirmed' : 'cancelled'}">${h.activo ? 'Activo' : 'Inactivo'}</span></td>
+        </tr>
+      `;
+    }).join('');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+cargarAnfitriones();
+
+const modal = document.getElementById('hostModal');
+const form = document.getElementById('addHostForm');
+document.getElementById('openModalBtn').addEventListener('click', () => modal.classList.add('active'));
+const cerrar = () => { modal.classList.remove('active'); form.reset(); };
+document.getElementById('closeModalBtn').addEventListener('click', cerrar);
+document.getElementById('cancelModalBtn').addEventListener('click', cerrar);
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('btnGuardarHost');
+  btn.disabled = true;
+  btn.textContent = 'Creando...';
+
+  try {
+    const res = await fetch(`${API_URL}/api/admin/anfitriones`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+      body: JSON.stringify({
+        nombre_completo: document.getElementById('fullName').value.trim(),
+        correo: document.getElementById('email').value.trim(),
+        telefono: document.getElementById('telefono').value.trim(),
+        password: document.getElementById('password').value
+      })
+    });
+    if (res.ok) {
+      alert('Anfitrión creado con éxito.');
+      cerrar();
+      cargarAnfitriones();
+    } else {
+      const err = await res.json();
+      alert(err.detail || 'No se pudo crear el anfitrión.');
+    }
+  } catch (err) {
+    alert('Error de conexión.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Crear cuenta';
+  }
+});
+</script>
+</body>
+</html>

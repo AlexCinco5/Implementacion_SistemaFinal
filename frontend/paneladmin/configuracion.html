@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Configuración · Entre Nubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  .config-section{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:16px}
+  .config-section h3{font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .config-section h3::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--pine)}
+  .config-section .desc{font-size:13px;color:var(--muted);margin-bottom:18px}
+  .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .form-field{display:flex;flex-direction:column;gap:6px}
+  .form-field.full{grid-column:1/-1}
+  .form-field label{font-size:12px;font-weight:600;color:var(--ink)}
+  .form-field input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--soft);font-size:13.5px}
+  .form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+  @media (max-width:640px){.form-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="admin.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
+      <span>Entre Nubes<small>Panel admin</small></span>
+    </a>
+
+    <div class="nav-group">
+      <div class="nav-label">General</div>
+      <a class="nav-link" href="admin.html">Resumen</a>
+      <a class="nav-link" href="alojamientos.html">Alojamientos</a>
+      <a class="nav-link" href="reservaciones.html">Reservaciones</a>
+      <a class="nav-link" href="anfitriones.html">Anfitriones</a>
+      <a class="nav-link" href="huespedes.html">Huéspedes</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Contenido</div>
+      <a class="nav-link" href="resenas.html">Reseñas</a>
+      <a class="nav-link" href="reportes.html">Reportes</a>
+      <a class="nav-link active" href="configuracion.html">Configuración</a>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="avatar-sm" id="adminAvatar">AD</div>
+      <div class="who"><span id="adminName">Administrador</span><small>Panel general</small></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Configuración de Pagos SPEI</h1>
+        <div class="date">Estos datos se muestran automáticamente al huésped en recibo.html</div>
+      </div>
+    </div>
+
+    <form id="formSpei">
+      <div class="config-section">
+        <h3>Cuenta bancaria para transferencias SPEI</h3>
+        <p class="desc">Actualiza la CLABE y los tiempos límite de expiración automática.</p>
+        <div class="form-grid">
+          <div class="form-field">
+            <label for="banco">Banco</label>
+            <input id="banco" type="text" required placeholder="Ej. BBVA / STP">
+          </div>
+          <div class="form-field">
+            <label for="titular">Titular de la cuenta</label>
+            <input id="titular" type="text" required placeholder="Ej. Entre Nubes Oaxaca">
+          </div>
+          <div class="form-field full">
+            <label for="clabe">CLABE Interbancaria (18 dígitos)</label>
+            <input id="clabe" type="text" required maxlength="18" placeholder="012345678901234567">
+          </div>
+          <div class="form-field">
+            <label for="minPago">Tiempo límite para subir comprobante (minutos)</label>
+            <input id="minPago" type="number" min="5" value="15" required>
+          </div>
+          <div class="form-field">
+            <label for="hrsRev">Tiempo límite para validación del admin (horas)</label>
+            <input id="hrsRev" type="number" min="1" value="24" required>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn primary" type="submit">Guardar configuración SPEI</button>
+      </div>
+    </form>
+  </main>
+</div>
+
+<script>
+const API_URL = 'http://localhost:8000';
+const jwt = localStorage.getItem('jwt');
+const rol = localStorage.getItem('user_rol');
+
+if (!jwt || rol !== 'admin') {
+  window.location.href = '../login.html';
+}
+
+const adminName = localStorage.getItem('reserva_nombre') || 'Administrador';
+document.getElementById('adminName').textContent = adminName;
+document.getElementById('adminAvatar').textContent = adminName.substring(0, 2).toUpperCase();
+
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch(`${API_URL}/api/admin/configuracion`, {
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    const cfg = await res.json();
+    document.getElementById('banco').value = cfg.banco || '';
+    document.getElementById('titular').value = cfg.titular || '';
+    document.getElementById('clabe').value = cfg.clabe_spei || '';
+    document.getElementById('minPago').value = cfg.tiempo_pago_minutos || 15;
+    document.getElementById('hrsRev').value = cfg.tiempo_revision_horas || 24;
+  } catch (e) {
+    console.error(e);
+  }
+});
+
+document.getElementById('formSpei').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const res = await fetch(`${API_URL}/api/admin/configuracion`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+    body: JSON.stringify({
+      banco: document.getElementById('banco').value.trim(),
+      titular: document.getElementById('titular').value.trim(),
+      clabe_spei: document.getElementById('clabe').value.trim(),
+      tiempo_pago_minutos: parseInt(document.getElementById('minPago').value, 10),
+      tiempo_revision_horas: parseInt(document.getElementById('hrsRev').value, 10)
+    })
+  });
+  if (res.ok) {
+    alert('Configuración SPEI actualizada correctamente.');
+  } else {
+    alert('Error al guardar la configuración.');
+  }
+});
+</script>
+</body>
+</html>

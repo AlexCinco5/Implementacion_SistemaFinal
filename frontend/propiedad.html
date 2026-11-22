@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Detalle de Alojamiento · Entre Nubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --pine:#2d5a3d;--pine-d:#1e3d28;--moss:#4a7c59;--sage:#8aa88f;--mint:#e6efe8;
+  --cream:#fafaf5;--ink:#1a2e20;--muted:#6b7a6f;--line:#e2e8de;--soft:#f2f5ee;
+  --ease:cubic-bezier(.2,0,0,1);--shadow-md:0 4px 12px rgba(30,61,40,.10);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.5;color:var(--ink);background:var(--cream)}
+a{color:inherit;text-decoration:none}
+button{font:inherit;cursor:pointer;background:none;border:0;padding:0;color:inherit}
+
+.nav{height:76px;display:flex;align-items:center;justify-content:space-between;padding:0 6%;position:sticky;top:0;z-index:60;background:rgba(250,250,245,.88);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+.logo{font:700 20px/1 Montserrat,sans-serif;color:var(--pine);display:inline-flex;align-items:center;gap:8px}
+.logo svg{width:20px;height:20px;color:var(--pine)}
+.actions{display:flex;gap:4px}
+.icon-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;font-size:14px;font-weight:500}
+.icon-btn:hover{background:var(--soft)}
+.icon-btn svg{width:16px;height:16px}
+.icon-btn.is-saved{color:var(--pine)}
+.icon-btn.is-saved svg{fill:var(--pine);stroke:var(--pine)}
+
+.wrap{max-width:1120px;margin:auto;padding:24px 20px 70px}
+.crumb{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:14px;font-weight:500;margin-bottom:18px}
+.crumb:hover{color:var(--pine)}
+.top h1{font:700 26px/1.25 Montserrat,sans-serif;margin:0}
+.rating{margin:10px 0 20px;color:var(--muted);font-size:14px}
+.rating .loc{color:var(--pine);font-weight:600}
+
+.gallery{display:grid;grid-template-columns:2fr 1fr 1fr;grid-template-rows:205px 205px;gap:8px;border-radius:16px;overflow:hidden}
+.gcell{position:relative;overflow:hidden;background:var(--soft)}
+.gcell img{width:100%;height:100%;object-fit:cover;transition:transform .7s var(--ease)}
+.gcell:hover img{transform:scale(1.05)}
+.g1{grid-row:1/3;grid-column:1}.g2{grid-column:2/3;grid-row:1}.g3{grid-column:3/4;grid-row:1}.g4{grid-column:2/3;grid-row:2}.g5{grid-column:3/4;grid-row:2}
+
+.below{display:grid;grid-template-columns:1.55fr .85fr;gap:70px;margin-top:36px}
+.hostline{border-bottom:1px solid var(--line);padding-bottom:22px}
+.hostline h2{font:600 20px/1.3 Montserrat,sans-serif;margin:0 0 6px}
+.hostline .meta{color:var(--muted);font-size:14px}
+.section{border-bottom:1px solid var(--line);padding:30px 0}
+.section:last-of-type{border-bottom:0}
+.section h2{font:600 20px/1.3 Montserrat,sans-serif;margin:0 0 14px}
+.section h2 .dot{color:var(--pine);margin-right:8px}
+.amenities{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+.amenity{display:flex;align-items:center;gap:10px;font-size:15px}
+
+.host-card{display:flex;align-items:center;gap:18px;border:1px solid var(--line);border-radius:16px;padding:22px;background:#fff}
+.avatar{width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--moss),var(--pine));display:grid;place-items:center;color:#fff;font:700 22px/1 Montserrat,sans-serif}
+
+.booking{border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 6px 22px rgba(30,61,40,.10);position:sticky;top:104px;background:#fff}
+.booking .price-head{display:flex;align-items:baseline;gap:6px;margin-bottom:16px}
+.booking .price-head .price{font-size:22px;font-weight:700;color:var(--pine)}
+.dates{display:grid;grid-template-columns:1fr 1fr;border:1px solid #b8c4b8;border-radius:12px;overflow:hidden}
+.dates > div{padding:10px 12px}
+.dates > div:first-child{border-right:1px solid #b8c4b8}
+.dates label,.guests label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--ink)}
+.dates input,.guests select{border:0;outline:0;width:100%;padding:3px 0 0;font-size:14px;background:transparent}
+.guests{border:1px solid #b8c4b8;border-radius:12px;padding:10px 12px;margin-top:10px}
+.reserve{width:100%;margin-top:18px;padding:15px;border-radius:12px;background:var(--pine);color:#fff;font-weight:700;font-size:16px}
+.reserve:hover{background:var(--pine-d)}
+.note{text-align:center;color:var(--muted);font-size:13px;margin:12px 0 0}
+.footer{background:var(--soft);padding:36px 6%;margin-top:20px;color:var(--muted);font-size:14px;border-top:1px solid var(--line)}
+
+@media (max-width:860px){
+  .gallery{grid-template-columns:1fr 1fr;grid-template-rows:240px 140px 140px}
+  .g1{grid-row:1/2;grid-column:1/3}.g2{grid-column:1/2;grid-row:2}.g3{grid-column:2/3;grid-row:2}.g4{grid-column:1/2;grid-row:3}.g5{grid-column:2/3;grid-row:3}
+  .below{grid-template-columns:1fr;gap:24px}.booking{position:static;order:-1}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a class="logo" href="index.html">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
+    Entre Nubes
+  </a>
+  <div class="actions">
+    <button class="icon-btn" id="saveBtn" type="button">
+      <svg viewBox="0 0 32 32"><path d="M16 28c7-4.7 14-10.2 14-17a7 7 0 0 0-14-1.4A7 7 0 0 0 2 11c0 6.8 7 12.3 14 17Z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      Guardar
+    </button>
+  </div>
+</nav>
+
+<div class="wrap">
+  <a class="crumb" href="index.html">← Volver a los resultados</a>
+
+  <div class="top">
+    <h1 id="propTitulo">Cargando detalles...</h1>
+  </div>
+  <div class="rating">★ <b>Nuevo</b> · <span class="loc" id="propDireccion">Capulálpam de Méndez, Oaxaca</span></div>
+
+  <div class="gallery">
+    <div class="gcell g1"><img src="https://images.unsplash.com/photo-1542718610-a1d656d1884c?w=1200" alt="Vista principal"></div>
+    <div class="gcell g2"><img src="https://images.unsplash.com/photo-1449844908441-8829872d2607?w=700" alt="Interior"></div>
+    <div class="gcell g3"><img src="https://images.unsplash.com/photo-1510798831971-661eb04b3739?w=700" alt="Terraza"></div>
+    <div class="gcell g4"><img src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?w=700" alt="Recámara"></div>
+    <div class="gcell g5"><img src="https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=700" alt="Sala"></div>
+  </div>
+
+  <div class="below">
+    <main>
+      <div class="hostline">
+        <h2 id="propTipo">Alojamiento entero</h2>
+        <p class="meta" id="propCapacidad">Cargando capacidad...</p>
+      </div>
+
+      <section class="section" id="seccion-acerca">
+        <h2><span class="dot">◆</span>Acerca de este espacio</h2>
+        <p id="propDescripcion">Cargando descripción...</p>
+      </section>
+
+      <section class="section">
+        <h2><span class="dot">◆</span>Lo que ofrece este lugar</h2>
+        <div class="amenities" id="listaAmenidades">
+          <div class="amenity">✓ Wi-Fi</div>
+          <div class="amenity">✓ Estacionamiento</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2><span class="dot">◆</span>Conoce a tu anfitrión</h2>
+        <div class="host-card">
+          <div class="avatar" id="hostAvatar">E</div>
+          <div class="host-info">
+            <b id="hostNombre">Entre Nubes</b>
+            <small>Anfitrión verificado</small>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <aside>
+      <div class="booking">
+        <div class="price-head">
+          <span class="price" id="propPrecio">$- MXN</span>
+          <span>noche</span>
+        </div>
+        <form id="formReservar">
+          <div class="dates">
+            <div>
+              <label for="in">Llegada</label>
+              <input id="in" type="date" required>
+            </div>
+            <div>
+              <label for="out">Salida</label>
+              <input id="out" type="date" required>
+            </div>
+          </div>
+          <div class="guests">
+            <label for="g">Huéspedes</label>
+            <select id="g">
+              <option value="1">1 huésped</option>
+              <option value="2" selected>2 huéspedes</option>
+              <option value="3">3 huéspedes</option>
+              <option value="4">4 huéspedes</option>
+              <option value="6">6 huéspedes</option>
+            </select>
+          </div>
+          <button class="reserve" type="submit">Continuar a reserva</button>
+        </form>
+        <p class="note">Pago fuera de la app vía transferencia SPEI (15 min para enviar comprobante).</p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<footer class="footer">© 2026 Entre Nubes · Capulálpam de Méndez, Oaxaca</footer>
+
+<script>
+const API_URL = 'http://localhost:8000';
+
+document.getElementById('saveBtn').addEventListener('click', function(){
+  this.classList.toggle('is-saved');
+});
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const id = urlParams.get('id');
+
+  // Prellenar fechas si vienen del buscador
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('in').min = hoy;
+  document.getElementById('out').min = hoy;
+  if (urlParams.get('entrada')) document.getElementById('in').value = urlParams.get('entrada');
+  if (urlParams.get('salida')) document.getElementById('out').value = urlParams.get('salida');
+  if (urlParams.get('huespedes')) document.getElementById('g').value = urlParams.get('huespedes');
+
+  if (!id) {
+    document.getElementById('propTitulo').textContent = 'Propiedad no encontrada';
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_URL}/api/alojamientos/${id}`);
+    if (!res.ok) throw new Error('No encontrada');
+    const prop = await res.json();
+
+    document.getElementById('propTitulo').textContent = prop.titulo;
+    document.getElementById('propDireccion').textContent = prop.direccion || 'Capulálpam de Méndez, Oaxaca';
+    document.getElementById('propTipo').textContent = `Alojamiento: ${prop.tipo}`;
+    document.getElementById('propPrecio').textContent = `$${Number(prop.precio_noche).toLocaleString('es-MX')} MXN`;
+    document.getElementById('propCapacidad').textContent = `${prop.capacidad_huespedes} huéspedes · ${prop.habitaciones} habitaciones · ${prop.banos} baños`;
+    document.getElementById('propDescripcion').textContent = prop.descripcion || 'Sin descripción disponible.';
+
+    if (prop.perfiles && prop.perfiles.nombre_completo) {
+      document.getElementById('hostNombre').textContent = prop.perfiles.nombre_completo;
+      document.getElementById('hostAvatar').textContent = prop.perfiles.nombre_completo[0].toUpperCase();
+    }
+
+    if (prop.amenidades && prop.amenidades.length > 0) {
+      document.getElementById('listaAmenidades').innerHTML = prop.amenidades
+        .map(a => `<div class="amenity">✓ ${a}</div>`).join('');
+    }
+
+    if (prop.imagenes && prop.imagenes.length > 0) {
+      const galleryImgs = document.querySelectorAll('.gcell img');
+      prop.imagenes.forEach((url, index) => {
+        if (galleryImgs[index]) galleryImgs[index].src = url;
+      });
+    }
+
+    document.getElementById('formReservar').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const entrada = document.getElementById('in').value;
+      const salida = document.getElementById('out').value;
+      const huespedes = document.getElementById('g').value;
+
+      if (!entrada || !salida || salida <= entrada) {
+        alert('Por favor selecciona una fecha de llegada y salida válidas.');
+        return;
+      }
+      window.location.href = `reserva.html?propiedad=${id}&entrada=${entrada}&salida=${salida}&huespedes=${huespedes}`;
+    });
+  } catch (error) {
+    console.error('Error cargando la propiedad:', error);
+    document.getElementById('propTitulo').textContent = 'Error al cargar el alojamiento';
+  }
+});
+</script>
+</body>
+</html>

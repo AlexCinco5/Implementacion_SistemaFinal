@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reservaciones · Entre Nubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  .btn-sm{padding:6px 10px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:#fff;margin-left:4px}
+  .btn-approve{background:#2d5a3d;color:#fff;border-color:#2d5a3d}
+  .btn-reject{background:#fbeaea;color:#a94a4a;border-color:#f5c2c2}
+  .btn-view{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="admin.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
+      <span>Entre Nubes<small>Panel admin</small></span>
+    </a>
+
+    <div class="nav-group">
+      <div class="nav-label">General</div>
+      <a class="nav-link" href="admin.html">Resumen</a>
+      <a class="nav-link" href="alojamientos.html">Alojamientos</a>
+      <a class="nav-link active" href="reservaciones.html">Reservaciones <span class="count" id="navCount">0</span></a>
+      <a class="nav-link" href="anfitriones.html">Anfitriones</a>
+      <a class="nav-link" href="huespedes.html">Huéspedes</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Contenido</div>
+      <a class="nav-link" href="resenas.html">Reseñas</a>
+      <a class="nav-link" href="reportes.html">Reportes</a>
+      <a class="nav-link" href="configuracion.html">Configuración</a>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="avatar-sm" id="adminAvatar">AD</div>
+      <div class="who"><span id="adminName">Administrador</span><small>Panel general</small></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Validación de Reservaciones (SPEI)</h1>
+        <div class="date" id="subRes">Revisa los comprobantes dentro de la ventana de 24 horas</div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Por validar (24h)</div><div class="value" id="stRev" style="color:#c8912f">0</div></div>
+      <div class="stat"><div class="label">Confirmadas</div><div class="value" id="stConf">0</div></div>
+      <div class="stat"><div class="label">Esperando SPEI (15m)</div><div class="value" id="stPend">0</div></div>
+      <div class="stat"><div class="label">Expiradas / Canceladas</div><div class="value" id="stCanc">0</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>Todas las reservaciones</h3></div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Huésped</th>
+            <th>Alojamiento</th>
+            <th>Fechas</th>
+            <th>Estado</th>
+            <th>Total</th>
+            <th>Acciones SPEI</th>
+          </tr>
+        </thead>
+        <tbody id="tablaReservas">
+          <tr><td colspan="6" style="text-align:center;color:var(--muted)">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script>
+const API_URL = 'http://localhost:8000';
+const jwt = localStorage.getItem('jwt');
+const rol = localStorage.getItem('user_rol');
+
+if (!jwt || rol !== 'admin') {
+  window.location.href = '../login.html';
+}
+
+const adminName = localStorage.getItem('reserva_nombre') || 'Administrador';
+document.getElementById('adminName').textContent = adminName;
+document.getElementById('adminAvatar').textContent = adminName.substring(0, 2).toUpperCase();
+
+async function cargarReservas() {
+  try {
+    const res = await fetch(`${API_URL}/api/admin/reservaciones`, {
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    const lista = await res.json();
+
+    document.getElementById('navCount').textContent = lista.length;
+    document.getElementById('stRev').textContent = lista.filter(r => r.estado === 'en_revision').length;
+    document.getElementById('stConf').textContent = lista.filter(r => r.estado === 'confirmada' || r.estado === 'completada').length;
+    document.getElementById('stPend').textContent = lista.filter(r => r.estado === 'pendiente_pago').length;
+    document.getElementById('stCanc').textContent = lista.filter(r => r.estado === 'cancelada' || r.estado === 'expirada').length;
+
+    const tbody = document.getElementById('tablaReservas');
+    if (!lista.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted)">No hay reservaciones.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = lista.map(r => {
+      const h = r.perfiles?.nombre_completo || 'Huésped';
+      let badge = `<span class="badge pending">${r.estado}</span>`;
+      if (r.estado === 'confirmada') badge = '<span class="badge confirmed">Confirmada</span>';
+      else if (r.estado === 'en_revision') badge = '<span class="badge pending">Comprobante recibido</span>';
+      else if (r.estado === 'pendiente_pago') badge = '<span class="badge pending">Esperando SPEI (15m)</span>';
+      else if (r.estado === 'expirada' || r.estado === 'cancelada') badge = `<span class="badge cancelled">${r.estado}</span>`;
+
+      let acciones = '<span style="color:var(--muted);font-size:12px">—</span>';
+      if (r.comprobante_url) {
+        acciones = `<button class="btn-sm btn-view" onclick="verComprobante('${r.id}')">Ver recibo</button>`;
+        if (r.estado === 'en_revision') {
+          acciones += `
+            <button class="btn-sm btn-approve" onclick="validarReserva('${r.id}', 'aprobar')">Aprobar</button>
+            <button class="btn-sm btn-reject" onclick="validarReserva('${r.id}', 'rechazar')">Rechazar</button>
+          `;
+        }
+      }
+
+      return `
+        <tr>
+          <td><b>${h}</b><br><small style="color:var(--muted)">${r.perfiles?.telefono || r.perfiles?.correo || ''}</small></td>
+          <td>${r.alojamientos?.titulo || 'Alojamiento'}</td>
+          <td>${r.fecha_entrada} al ${r.fecha_salida}</td>
+          <td>${badge}</td>
+          <td class="price-cell">$${Number(r.total_pagar).toLocaleString('es-MX')}</td>
+          <td style="text-align:right;white-space:nowrap">${acciones}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function verComprobante(id) {
+  try {
+    const res = await fetch(`${API_URL}/api/admin/reservaciones/${id}/comprobante`, {
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    const data = await res.json();
+    if (res.ok && data.url) {
+      window.open(data.url, '_blank');
+    } else {
+      alert(data.detail || 'No se pudo abrir el comprobante.');
+    }
+  } catch (e) {
+    alert('Error al obtener el comprobante.');
+  }
+}
+
+async function validarReserva(id, accion) {
+  const texto = accion === 'aprobar' ? '¿Confirmar que el pago SPEI fue recibido?' : '¿Rechazar comprobante y liberar las fechas?';
+  if (!confirm(texto)) return;
+
+  const notas = accion === 'rechazar' ? (prompt('Motivo del rechazo (opcional):') || '') : 'Pago verificado';
+  try {
+    const res = await fetch(`${API_URL}/api/admin/reservaciones/${id}/validar`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwt}`
+      },
+      body: JSON.stringify({ accion, notas_admin: notas })
+    });
+    if (res.ok) {
+      alert(accion === 'aprobar' ? '¡Reservación confirmada!' : 'Reservación rechazada y fechas liberadas.');
+      cargarReservas();
+    } else {
+      const err = await res.json();
+      alert(err.detail || 'Error al actualizar.');
+    }
+  } catch (e) {
+    alert('Error de conexión.');
+  }
+}
+
+cargarReservas();
+</script>
+</body>
+</html>

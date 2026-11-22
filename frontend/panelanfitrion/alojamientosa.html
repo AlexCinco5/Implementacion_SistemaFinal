@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Alojamientos · Entre Nubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  .modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(26,46,32,.55);backdrop-filter:blur(4px);display:none;align-items:flex-start;justify-content:center;padding:32px 16px;overflow-y:auto;opacity:0;transition:opacity .25s cubic-bezier(.2,0,0,1)}
+  .modal-overlay.open{display:flex;opacity:1}
+  .modal{background:#fff;border-radius:16px;width:100%;max-width:720px;box-shadow:0 20px 60px rgba(30,61,40,.3);transform:translateY(12px) scale(.98);transition:transform .3s cubic-bezier(.2,0,0,1);overflow:hidden;margin:auto}
+  .modal-overlay.open .modal{transform:translateY(0) scale(1)}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid #e2e8de;position:sticky;top:0;background:#fff;z-index:2}
+  .modal-head h2{font-size:18px;font-weight:700;font-family:Montserrat,sans-serif;display:flex;align-items:center;gap:10px;letter-spacing:-.3px}
+  .modal-head h2::before{content:"";width:8px;height:8px;border-radius:50%;background:#2d5a3d}
+  .modal-close{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;color:#6b7a6f}
+  .modal-close:hover{background:#f2f5ee;color:#1a2e20}
+  .modal-close svg{width:18px;height:18px}
+  .modal-body{padding:22px 24px;display:flex;flex-direction:column;gap:20px}
+  .modal-foot{padding:16px 24px;border-top:1px solid #e2e8de;display:flex;justify-content:flex-end;gap:8px;background:#f2f5ee;position:sticky;bottom:0}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .form-field{display:flex;flex-direction:column;gap:6px}
+  .form-field.full{grid-column:1/-1}
+  .form-field label{font-size:12.5px;font-weight:600;color:#1a2e20;display:flex;align-items:center;gap:6px}
+  .form-field label .req{color:#a94a4a}
+  .form-field input[type="text"],.form-field input[type="number"],.form-field select,.form-field textarea{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #e2e8de;background:#f2f5ee;font-size:13.5px;color:#1a2e20;font-family:inherit}
+  .form-field textarea{resize:vertical;min-height:90px}
+  .form-field input:focus,.form-field select:focus,.form-field textarea:focus{outline:none;border-color:#2d5a3d;background:#fff;box-shadow:0 0 0 3px rgba(45,90,61,.1)}
+  .form-field small{font-size:11.5px;color:#6b7a6f}
+  .upload-zone{border:2px dashed #e2e8de;border-radius:12px;padding:24px;text-align:center;cursor:pointer;background:#f2f5ee}
+  .upload-zone:hover,.upload-zone.dragover{border-color:#2d5a3d;background:#e6efe8}
+  .upload-zone svg{width:36px;height:36px;color:#2d5a3d;margin:0 auto 10px;opacity:.8}
+  .preview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;margin-top:12px}
+  .preview-item{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:#f2f5ee;border:1px solid #e2e8de}
+  .preview-item img{width:100%;height:100%;object-fit:cover}
+  .amenities{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+  .amenity{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid #e2e8de;background:#fff;cursor:pointer;font-size:13px;user-select:none}
+  .amenity input{display:none}
+  .amenity .box{width:18px;height:18px;border-radius:5px;border:1.5px solid #e2e8de;flex:0 0 18px;display:grid;place-items:center}
+  .amenity .box svg{width:12px;height:12px;color:#fff;opacity:0}
+  .amenity input:checked + .box{background:#2d5a3d;border-color:#2d5a3d}
+  .amenity input:checked + .box svg{opacity:1}
+  .amenity input:checked ~ span{font-weight:600;color:#2d5a3d}
+  @media (max-width:640px){.form-grid{grid-template-columns:1fr}.modal-foot{flex-direction:column-reverse}}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="../index.html" aria-label="Entre Nubes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
+      <span>Entre Nubes<small>Panel anfitrión</small></span>
+    </a>
+
+    <div class="nav-group">
+      <div class="nav-label">General</div>
+      <a class="nav-link active" href="alojamientosa.html">Alojamientos <span class="count" id="navCountAloj">0</span></a>
+      <a class="nav-link" href="reservacionesa.html">Reservaciones</a>
+      <a class="nav-link" href="huespedesa.html">Huéspedes</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Contenido</div>
+      <a class="nav-link" href="resenasa.html">Reseñas</a>
+      <a class="nav-link" href="reportesa.html">Reportes</a>
+      <a class="nav-link" href="configuraciona.html">Configuración</a>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="avatar-sm" id="sideAvatar">--</div>
+      <div class="who" id="sideName">Cargando...<small>Anfitrión</small></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Alojamientos</h1>
+        <div class="date" id="subAloj">Cargando propiedades...</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="top-actions">
+        <button class="btn primary" type="button" id="btnNuevoAlojamiento">+ Nuevo alojamiento</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="label">Total propiedades</div>
+        <div class="value" id="statTotal">0</div>
+        <span class="delta flat">Registradas</span>
+      </div>
+      <div class="stat">
+        <div class="label">Activas</div>
+        <div class="value" id="statActivas">0</div>
+        <span class="delta up">Publicadas</span>
+      </div>
+      <div class="stat">
+        <div class="label">Precio promedio / noche</div>
+        <div class="value" id="statPromedio">$0</div>
+        <span class="delta flat">MXN</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Todas las propiedades</h3>
+      </div>
+      <div class="listings" id="listaAlojamientos">
+        <p style="padding:16px;color:#6b7a6f">Cargando tus alojamientos...</p>
+      </div>
+    </div>
+
+    <div class="admin-footer">
+      <span>© 2026 Entre Nubes · Panel interno</span>
+      <span><a href="../index.html">Ir al sitio público</a></span>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL: NUEVO ALOJAMIENTO -->
+<div class="modal-overlay" id="modalAlojamiento">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Nuevo alojamiento</h2>
+      <button class="modal-close" type="button" data-close>✕</button>
+    </div>
+
+    <form id="formAlojamiento" class="modal-body" enctype="multipart/form-data">
+      <div class="form-grid">
+        <div class="form-field full">
+          <label for="nombre">Nombre del lugar <span class="req">*</span></label>
+          <input id="nombre" name="nombre" type="text" placeholder="Ej: Cabaña Mirador" required>
+        </div>
+        <div class="form-field">
+          <label for="tipo">Tipo de alojamiento</label>
+          <select id="tipo" name="tipo">
+            <option value="cabaña">Cabaña</option>
+            <option value="refugio">Refugio</option>
+            <option value="casa">Casa</option>
+            <option value="departamento">Departamento</option>
+            <option value="habitacion">Habitación</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="precio">Precio por noche (MXN) <span class="req">*</span></label>
+          <input id="precio" name="precio" type="number" min="100" step="50" placeholder="2500" required>
+        </div>
+      </div>
+
+      <div class="form-field full">
+        <label>Imágenes del alojamiento</label>
+        <div class="upload-zone" id="uploadZone">
+          <div class="txt">
+            <b>Haz clic o arrastra tus imágenes aquí</b>
+            <small>JPG, PNG o WebP · hasta 10 imágenes</small>
+          </div>
+          <input type="file" id="inputImagenes" name="imagenes" accept="image/*" multiple hidden>
+        </div>
+        <div class="preview-grid" id="previewGrid"></div>
+      </div>
+
+      <div class="form-field full">
+        <label for="acerca">Acerca de <span class="req">*</span></label>
+        <textarea id="acerca" name="acerca" placeholder="Describe el alojamiento..." required></textarea>
+      </div>
+
+      <div class="form-field full">
+        <label>Lo que ofrece</label>
+        <div class="amenities">
+          <label class="amenity"><input type="checkbox" name="amenidades" value="Wi-Fi"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5 9-11"/></svg></span><span>Wi-Fi</span></label>
+          <label class="amenity"><input type="checkbox" name="amenidades" value="Estacionamiento"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5 9-11"/></svg></span><span>Estacionamiento</span></label>
+          <label class="amenity"><input type="checkbox" name="amenidades" value="Chimenea"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5 9-11"/></svg></span><span>Chimenea</span></label>
+          <label class="amenity"><input type="checkbox" name="amenidades" value="Cocina equipada"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5 9-11"/></svg></span><span>Cocina equipada</span></label>
+          <label class="amenity"><input type="checkbox" name="amenidades" value="Pet friendly"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5 9-11"/></svg></span><span>Pet friendly</span></label>
+          <label class="amenity"><input type="checkbox" name="amenidades" value="Terraza"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5 9-11"/></svg></span><span>Terraza</span></label>
+          <label class="amenity"><input type="checkbox" name="amenidades" value="Agua caliente"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5 9-11"/></svg></span><span>Agua caliente</span></label>
+          <label class="amenity"><input type="checkbox" name="amenidades" value="TV / Streaming"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5 9-11"/></svg></span><span>TV / Streaming</span></label>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-field full">
+          <label for="direccion">Dirección <span class="req">*</span></label>
+          <input id="direccion" name="direccion" type="text" placeholder="Ej: Camino al Mirador s/n" required>
+        </div>
+        <div class="form-field">
+          <label for="ciudad">Ciudad / Municipio</label>
+          <input id="ciudad" name="ciudad" type="text" value="Capulálpam de Méndez">
+        </div>
+        <div class="form-field">
+          <label for="estado">Estado</label>
+          <input id="estado" name="estado" type="text" value="Oaxaca">
+        </div>
+        <div class="form-field">
+          <label for="latitud">Latitud</label>
+          <input id="latitud" name="latitud" type="text" placeholder="17.3056">
+        </div>
+        <div class="form-field">
+          <label for="longitud">Longitud</label>
+          <input id="longitud" name="longitud" type="text" placeholder="-96.4450">
+        </div>
+      </div>
+    </form>
+
+    <div class="modal-foot">
+      <button class="btn" type="button" data-close>Cancelar</button>
+      <button class="btn primary" type="submit" form="formAlojamiento" id="btnGuardar">Guardar alojamiento</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_URL = 'http://localhost:8000';
+const jwt = localStorage.getItem('jwt');
+const rol = localStorage.getItem('user_rol');
+
+if (!jwt || (rol !== 'anfitrion' && rol !== 'admin')) {
+  window.location.href = '../login.html';
+}
+
+const nombreGuardado = localStorage.getItem('reserva_nombre') || 'Anfitrión';
+document.getElementById('sideName').innerHTML = `${nombreGuardado}<small>Anfitrión</small>`;
+document.getElementById('sideAvatar').textContent = nombreGuardado.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+
+async function cargarAlojamientos() {
+  try {
+    const res = await fetch(`${API_URL}/api/anfitrion/alojamientos`, {
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    const lista = await res.json();
+
+    document.getElementById('navCountAloj').textContent = lista.length;
+    document.getElementById('statTotal').textContent = lista.length;
+    document.getElementById('statActivas').textContent = lista.filter(a => a.activo).length;
+    document.getElementById('subAloj').textContent = `${lista.length} propiedades registradas`;
+
+    const promedio = lista.length
+      ? Math.round(lista.reduce((acc, a) => acc + Number(a.precio_noche), 0) / lista.length)
+      : 0;
+    document.getElementById('statPromedio').textContent = `$${promedio.toLocaleString('es-MX')}`;
+
+    const cont = document.getElementById('listaAlojamientos');
+    if (!lista.length) {
+      cont.innerHTML = '<p style="padding:16px;color:#6b7a6f">Aún no has registrado alojamientos. Haz clic en "+ Nuevo alojamiento".</p>';
+      return;
+    }
+
+    cont.innerHTML = lista.map(a => {
+      const img = (a.imagenes && a.imagenes.length) ? a.imagenes[0] : 'https://images.unsplash.com/photo-1542718610-a1d656d1884c?w=400';
+      return `
+        <div class="listing" style="display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid #e2e8de">
+          <img src="${img}" alt="${a.titulo}" style="width:76px;height:58px;object-fit:cover;border-radius:10px">
+          <div style="flex:1">
+            <b>${a.titulo}</b>
+            <div style="font-size:13px;color:#6b7a6f">${a.tipo} · ${a.ciudad || 'Capulálpam'} · ${a.direccion}</div>
+          </div>
+          <div style="font-weight:700;color:#2d5a3d">$${Number(a.precio_noche).toLocaleString('es-MX')} / noche</div>
+          <a class="btn" href="../propiedad.html?id=${a.id}" target="_blank">Ver</a>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+cargarAlojamientos();
+
+// Modal y subida de imágenes
+const overlay = document.getElementById('modalAlojamiento');
+const form = document.getElementById('formAlojamiento');
+const uploadZone = document.getElementById('uploadZone');
+const inputImgs = document.getElementById('inputImagenes');
+const previewGrid = document.getElementById('previewGrid');
+
+document.getElementById('btnNuevoAlojamiento').addEventListener('click', () => {
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+});
+overlay.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => {
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+}));
+
+uploadZone.addEventListener('click', () => inputImgs.click());
+inputImgs.addEventListener('change', () => {
+  previewGrid.innerHTML = '';
+  Array.from(inputImgs.files).slice(0, 10).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const div = document.createElement('div');
+      div.className = 'preview-item';
+      div.innerHTML = `<img src="${e.target.result}" alt="${file.name}">`;
+      previewGrid.appendChild(div);
+    };
+    reader.readAsDataURL(file);
+  });
+});
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('btnGuardar');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  const formData = new FormData(form);
+  try {
+    const res = await fetch(`${API_URL}/api/anfitrion/alojamientos`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${jwt}` },
+      body: formData
+    });
+    if (res.ok) {
+      alert('¡Alojamiento publicado con éxito!');
+      overlay.classList.remove('open');
+      document.body.style.overflow = '';
+      form.reset();
+      previewGrid.innerHTML = '';
+      cargarAlojamientos();
+    } else {
+      const err = await res.json();
+      alert(err.detail || 'Error al guardar el alojamiento.');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Error de conexión con FastAPI.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar alojamiento';
+  }
+});
+</script>
+</body>
+</html>
