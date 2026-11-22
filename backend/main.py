@@ -1,11 +1,13 @@
 import os
 import uuid
+from fastapi.staticfiles import StaticFiles
 from datetime import date, datetime, timedelta, timezone
 from fastapi import FastAPI, HTTPException, Depends, Header, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from supabase import create_client, Client
 from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -555,3 +557,8 @@ def listar_resenas_admin(usuario = Depends(requerir_admin)):
         .execute()
     )
     return res.data
+
+# Servir la carpeta frontend desde FastAPI (debe ir al final del archivo)
+frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
+if os.path.exists(frontend_dir):
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
