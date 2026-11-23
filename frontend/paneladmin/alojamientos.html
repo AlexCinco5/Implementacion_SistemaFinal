@@ -18,6 +18,7 @@
   .modal-body{padding:22px 24px;display:flex;flex-direction:column;gap:16px}
   .modal-foot{padding:16px 24px;border-top:1px solid #e2e8de;display:flex;justify-content:flex-end;gap:8px;background:#f2f5ee}
   .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .form-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
   .form-field{display:flex;flex-direction:column;gap:6px}
   .form-field.full{grid-column:1/-1}
   .form-field label{font-size:12.5px;font-weight:600}
@@ -26,38 +27,21 @@
   .preview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:10px;margin-top:10px}
   .preview-item{aspect-ratio:1;border-radius:8px;overflow:hidden}
   .preview-item img{width:100%;height:100%;object-fit:cover}
+  .actions-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .btn-xs{padding:6px 10px;border-radius:8px;font-size:12px;font-weight:600;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+  .btn-xs:hover{border-color:var(--pine);color:var(--pine);background:var(--soft)}
+  .btn-xs.warn{background:var(--amber-soft);color:#92400e;border-color:#f3d28f}
+  .btn-xs.ok{background:var(--mint);color:var(--pine);border-color:#b7d4be}
+  .btn-xs.danger{background:var(--rose-soft);color:var(--rose);border-color:#f2b8b8}
+  .listing.is-paused{opacity:.72;background:#f7f8f6}
+  .filter-bar{display:flex;gap:8px;align-items:center}
+  @media (max-width:640px){.form-grid,.form-grid-3{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 
 <div class="shell">
-  <aside class="sidebar">
-    <a class="brand" href="admin.html">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
-      <span>Entre Nubes<small>Panel admin</small></span>
-    </a>
-
-    <div class="nav-group">
-      <div class="nav-label">General</div>
-      <a class="nav-link" href="admin.html">Resumen</a>
-      <a class="nav-link active" href="alojamientos.html">Alojamientos <span class="count" id="navPropCount">0</span></a>
-      <a class="nav-link" href="reservaciones.html">Reservaciones</a>
-      <a class="nav-link" href="anfitriones.html">Anfitriones</a>
-      <a class="nav-link" href="huespedes.html">Huéspedes</a>
-    </div>
-
-    <div class="nav-group">
-      <div class="nav-label">Contenido</div>
-      <a class="nav-link" href="resenas.html">Reseñas</a>
-      <a class="nav-link" href="reportes.html">Reportes</a>
-      <a class="nav-link" href="configuracion.html">Configuración</a>
-    </div>
-
-    <div class="sidebar-foot">
-      <div class="avatar-sm" id="adminAvatar">AD</div>
-      <div class="who" id="adminName">Admin<small>Panel general</small></div>
-    </div>
-  </aside>
+  <aside class="sidebar"></aside>
 
   <main class="main">
     <div class="topbar">
@@ -73,12 +57,22 @@
 
     <div class="stats">
       <div class="stat"><div class="label">Total propiedades</div><div class="value" id="statTotal">0</div></div>
-      <div class="stat"><div class="label">Disponibles ahora</div><div class="value" id="statDisponibles">0</div></div>
+      <div class="stat"><div class="label">Publicadas (visibles)</div><div class="value" id="statDisponibles">0</div></div>
+      <div class="stat"><div class="label">Pausadas (ocultas)</div><div class="value" id="statPausadas" style="color:var(--amber)">0</div></div>
       <div class="stat"><div class="label">Precio promedio</div><div class="value" id="statPrecio">$0</div></div>
     </div>
 
     <div class="panel">
-      <div class="panel-head"><h3>Todas las propiedades</h3></div>
+      <div class="panel-head">
+        <h3>Todas las propiedades</h3>
+        <div class="filter-bar">
+          <select id="filtroEstado" class="btn-xs" style="padding:7px 10px">
+            <option value="todos">Ver todos</option>
+            <option value="activos">Solo publicados</option>
+            <option value="pausados">Solo pausados</option>
+          </select>
+        </div>
+      </div>
       <div class="listings" id="propiedadesList">
         <p style="text-align:center;padding:20px 0;color:var(--muted)">Cargando inventario...</p>
       </div>
@@ -96,7 +90,7 @@
   <div class="modal">
     <div class="modal-head">
       <h2>Nuevo alojamiento</h2>
-      <button class="modal-close" type="button" data-close>✕</button>
+      <button class="modal-close" type="button" data-close="modalAlojamiento">✕</button>
     </div>
 
     <form id="formAlojamiento" class="modal-body" enctype="multipart/form-data">
@@ -140,84 +134,264 @@
     </form>
 
     <div class="modal-foot">
-      <button class="btn" type="button" data-close>Cancelar</button>
+      <button class="btn" type="button" data-close="modalAlojamiento">Cancelar</button>
       <button class="btn primary" type="submit" form="formAlojamiento" id="btnSubmitForm">Guardar alojamiento</button>
     </div>
   </div>
 </div>
 
+<!-- MODAL: EDITAR ALOJAMIENTO -->
+<div class="modal-overlay" id="modalEditar">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Editar alojamiento</h2>
+      <button class="modal-close" type="button" data-close="modalEditar">✕</button>
+    </div>
+
+    <form id="formEditar" class="modal-body">
+      <input type="hidden" id="editId">
+      <div class="form-grid">
+        <div class="form-field full">
+          <label for="editTitulo">Nombre del lugar *</label>
+          <input id="editTitulo" type="text" required>
+        </div>
+        <div class="form-field">
+          <label for="editTipo">Tipo</label>
+          <select id="editTipo">
+            <option value="cabaña">Cabaña</option>
+            <option value="casa">Casa</option>
+            <option value="departamento">Departamento</option>
+            <option value="habitacion">Habitación</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="editPrecio">Precio por noche (MXN) *</label>
+          <input id="editPrecio" type="number" min="100" step="50" required>
+        </div>
+      </div>
+
+      <div class="form-grid-3">
+        <div class="form-field">
+          <label for="editCapacidad">Huéspedes</label>
+          <input id="editCapacidad" type="number" min="1" required>
+        </div>
+        <div class="form-field">
+          <label for="editHabitaciones">Habitaciones</label>
+          <input id="editHabitaciones" type="number" min="1" required>
+        </div>
+        <div class="form-field">
+          <label for="editBanos">Baños</label>
+          <input id="editBanos" type="number" min="1" required>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-field full">
+          <label for="editDireccion">Dirección *</label>
+          <input id="editDireccion" type="text" required>
+        </div>
+        <div class="form-field">
+          <label for="editCiudad">Ciudad / Municipio</label>
+          <input id="editCiudad" type="text">
+        </div>
+        <div class="form-field">
+          <label for="editEstado">Estado</label>
+          <input id="editEstado" type="text">
+        </div>
+        <div class="form-field">
+          <label for="editLat">Latitud (mapa)</label>
+          <input id="editLat" type="text" placeholder="17.3056">
+        </div>
+        <div class="form-field">
+          <label for="editLng">Longitud (mapa)</label>
+          <input id="editLng" type="text" placeholder="-96.4450">
+        </div>
+      </div>
+
+      <div class="form-field full">
+        <label for="editDesc">Descripción *</label>
+        <textarea id="editDesc" rows="3" required></textarea>
+      </div>
+
+      <div class="form-field full">
+        <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
+          <input id="editActivo" type="checkbox" style="width:auto">
+          <span>Visible en el catálogo público (desmarca para pausar)</span>
+        </label>
+      </div>
+    </form>
+
+    <div class="modal-foot">
+      <button class="btn" type="button" data-close="modalEditar">Cancelar</button>
+      <button class="btn primary" type="submit" form="formEditar" id="btnGuardarEdicion">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<script src="sidebar.js"></script>
+<script src="../notificaciones.js"></script>
 <script>
 const API_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8000' : '';
 const jwt = localStorage.getItem('jwt');
-const rol = localStorage.getItem('user_rol');
+let propiedadesCache = [];
 
-if (!jwt || rol !== 'admin') {
-  window.location.href = '../login.html';
+function renderPropiedades() {
+  const filtro = document.getElementById('filtroEstado').value;
+  const lista = document.getElementById('propiedadesList');
+
+  const filtradas = propiedadesCache.filter(p => {
+    if (filtro === 'activos') return p.activo !== false;
+    if (filtro === 'pausados') return p.activo === false;
+    return true;
+  });
+
+  if (!filtradas.length) {
+    lista.innerHTML = '<p style="text-align:center;padding:20px;color:var(--muted)">No hay propiedades en esta vista.</p>';
+    return;
+  }
+
+  lista.innerHTML = filtradas.map(prop => {
+    const activo = prop.activo !== false;
+    const imgUrl = (prop.imagenes && prop.imagenes.length)
+      ? prop.imagenes[0]
+      : 'https://images.unsplash.com/photo-1542718610-a1d656d1884c?w=200';
+    return `
+      <div class="listing ${activo ? '' : 'is-paused'}">
+        <div class="thumb"><img src="${imgUrl}" alt="${prop.titulo}"></div>
+        <div class="info">
+          <b>${prop.titulo}</b>
+          <small>${prop.tipo} · ${prop.capacidad_huespedes} huéspedes · ${prop.direccion}</small>
+        </div>
+        <div class="stats-mini">
+          <div><b>$${Number(prop.precio_noche).toLocaleString('es-MX')}</b> por noche</div>
+        </div>
+        <div class="actions-group">
+          <span class="status-dot ${activo ? 'on' : 'off'}" style="margin-right:6px">${activo ? 'Publicado' : 'Pausado'}</span>
+          <a class="btn-xs" href="../propiedad.html?id=${prop.id}" target="_blank">Ver</a>
+          <button type="button" class="btn-xs" onclick="abrirModalEditar('${prop.id}')">Editar</button>
+          <button type="button" class="btn-xs ${activo ? 'warn' : 'ok'}" onclick="alternarEstado('${prop.id}', ${!activo})">
+            ${activo ? 'Pausar' : 'Activar'}
+          </button>
+          <button type="button" class="btn-xs danger" onclick="eliminarAlojamiento('${prop.id}', '${prop.titulo.replace(/'/g, "\\'")}')">Eliminar</button>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
-
-const adminName = localStorage.getItem('reserva_nombre') || 'Admin';
-document.getElementById('adminName').innerHTML = `${adminName}<small>Panel general</small>`;
-document.getElementById('adminAvatar').textContent = adminName.substring(0, 2).toUpperCase();
 
 async function cargarAlojamientos() {
   try {
     const res = await fetch(`${API_URL}/api/anfitrion/alojamientos`, {
       headers: { 'Authorization': `Bearer ${jwt}` }
     });
-    const propiedades = await res.json();
+    propiedadesCache = await res.json();
 
-    document.getElementById('navPropCount').textContent = propiedades.length;
-    document.getElementById('txtTotal').textContent = propiedades.length;
-    document.getElementById('statTotal').textContent = propiedades.length;
-    document.getElementById('statDisponibles').textContent = propiedades.filter(p => p.activo).length;
-
-    const promedio = propiedades.length
-      ? Math.round(propiedades.reduce((acc, p) => acc + Number(p.precio_noche), 0) / propiedades.length)
+    const activas = propiedadesCache.filter(p => p.activo !== false).length;
+    const pausadas = propiedadesCache.length - activas;
+    const promedio = propiedadesCache.length
+      ? Math.round(propiedadesCache.reduce((acc, p) => acc + Number(p.precio_noche), 0) / propiedadesCache.length)
       : 0;
+
+    const navCount = document.getElementById('navPropCount');
+    if (navCount) navCount.textContent = propiedadesCache.length;
+    sessionStorage.setItem('en_admin_aloj', String(propiedadesCache.length));
+
+    document.getElementById('txtTotal').textContent = propiedadesCache.length;
+    document.getElementById('statTotal').textContent = propiedadesCache.length;
+    document.getElementById('statDisponibles').textContent = activas;
+    document.getElementById('statPausadas').textContent = pausadas;
     document.getElementById('statPrecio').textContent = `$${promedio.toLocaleString('es-MX')}`;
 
-    const lista = document.getElementById('propiedadesList');
-    if (!propiedades.length) {
-      lista.innerHTML = '<p style="text-align:center;padding:20px;color:var(--muted)">No hay propiedades registradas.</p>';
-      return;
-    }
-
-    lista.innerHTML = propiedades.map(prop => {
-      const imgUrl = (prop.imagenes && prop.imagenes.length)
-        ? prop.imagenes[0]
-        : 'https://images.unsplash.com/photo-1542718610-a1d656d1884c?w=200';
-      return `
-        <div class="listing">
-          <div class="thumb"><img src="${imgUrl}" alt="${prop.titulo}"></div>
-          <div class="info">
-            <b>${prop.titulo}</b>
-            <small>${prop.tipo} · ${prop.capacidad_huespedes} huéspedes · ${prop.direccion}</small>
-          </div>
-          <div class="stats-mini"><div><b>$${Number(prop.precio_noche).toLocaleString('es-MX')}</b> por noche</div></div>
-          <div class="mini-actions">
-            <span class="status-dot on">Publicado</span>
-            <a class="btn" href="../propiedad.html?id=${prop.id}" target="_blank" style="margin-left:8px">Ver</a>
-          </div>
-        </div>
-      `;
-    }).join('');
+    renderPropiedades();
   } catch (e) {
     console.error(e);
   }
 }
 
-cargarAlojamientos();
+window.abrirModalEditar = function (id) {
+  const prop = propiedadesCache.find(p => p.id === id);
+  if (!prop) return;
 
-const overlay = document.getElementById('modalAlojamiento');
+  document.getElementById('editId').value = prop.id;
+  document.getElementById('editTitulo').value = prop.titulo || '';
+  document.getElementById('editTipo').value = (prop.tipo || 'cabaña').toLowerCase();
+  document.getElementById('editPrecio').value = prop.precio_noche || 1000;
+  document.getElementById('editCapacidad').value = prop.capacidad_huespedes || 4;
+  document.getElementById('editHabitaciones').value = prop.habitaciones || 1;
+  document.getElementById('editBanos').value = prop.banos || 1;
+  document.getElementById('editDireccion').value = prop.direccion || '';
+  document.getElementById('editCiudad').value = prop.ciudad || 'Capulálpam de Méndez';
+  document.getElementById('editEstado').value = prop.estado || 'Oaxaca';
+  document.getElementById('editLat').value = prop.latitud || '';
+  document.getElementById('editLng').value = prop.longitud || '';
+  document.getElementById('editDesc').value = prop.descripcion || '';
+  document.getElementById('editActivo').checked = prop.activo !== false;
+
+  document.getElementById('modalEditar').classList.add('open');
+};
+
+window.alternarEstado = async function (id, nuevoEstado) {
+  const accion = nuevoEstado ? 'activar y volver a mostrar en el catálogo' : 'pausar y ocultar del catálogo público';
+  if (!confirm(`¿Seguro que deseas ${accion} este alojamiento?`)) return;
+
+  try {
+    const res = await fetch(`${API_URL}/api/anfitrion/alojamientos/${id}/estado`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwt}`
+      },
+      body: JSON.stringify({ activo: nuevoEstado })
+    });
+    if (res.ok) {
+      cargarAlojamientos();
+    } else {
+      const err = await res.json();
+      alert(err.detail || 'No se pudo cambiar el estado.');
+    }
+  } catch (e) {
+    alert('Error de conexión con FastAPI.');
+  }
+};
+
+window.eliminarAlojamiento = async function (id, titulo) {
+  if (!confirm(`¿Eliminar permanentemente "${titulo}"? Esta acción no se puede deshacer.`)) return;
+
+  try {
+    const res = await fetch(`${API_URL}/api/anfitrion/alojamientos/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      alert('Alojamiento eliminado.');
+      cargarAlojamientos();
+    } else {
+      alert(data.detail || 'No se pudo eliminar el alojamiento.');
+    }
+  } catch (e) {
+    alert('Error de conexión con FastAPI.');
+  }
+};
+
+// Modales y filtros
+document.getElementById('filtroEstado').addEventListener('change', renderPropiedades);
+document.getElementById('btnNuevoAlojamiento').addEventListener('click', () => {
+  document.getElementById('modalAlojamiento').classList.add('open');
+});
+document.querySelectorAll('[data-close]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById(btn.dataset.close).classList.remove('open');
+  });
+});
+
+// Crear alojamiento
 const form = document.getElementById('formAlojamiento');
 const inputImgs = document.getElementById('inputImagenes');
 const previewGrid = document.getElementById('previewGrid');
 const btnSubmitForm = document.getElementById('btnSubmitForm');
 
-document.getElementById('btnNuevoAlojamiento').addEventListener('click', () => overlay.classList.add('open'));
-overlay.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => overlay.classList.remove('open')));
 document.getElementById('uploadZone').addEventListener('click', () => inputImgs.click());
-
 inputImgs.addEventListener('change', () => {
   previewGrid.innerHTML = '';
   Array.from(inputImgs.files).slice(0, 6).forEach(file => {
@@ -245,7 +419,7 @@ form.addEventListener('submit', async (e) => {
       alert('¡Alojamiento creado con éxito!');
       form.reset();
       previewGrid.innerHTML = '';
-      overlay.classList.remove('open');
+      document.getElementById('modalAlojamiento').classList.remove('open');
       cargarAlojamientos();
     } else {
       const err = await res.json();
@@ -258,8 +432,57 @@ form.addEventListener('submit', async (e) => {
     btnSubmitForm.textContent = 'Guardar alojamiento';
   }
 });
+
+// Guardar edición
+document.getElementById('formEditar').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('editId').value;
+  const btn = document.getElementById('btnGuardarEdicion');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  const payload = {
+    titulo: document.getElementById('editTitulo').value.trim(),
+    tipo: document.getElementById('editTipo').value,
+    precio_noche: parseFloat(document.getElementById('editPrecio').value),
+    capacidad_huespedes: parseInt(document.getElementById('editCapacidad').value, 10),
+    habitaciones: parseInt(document.getElementById('editHabitaciones').value, 10),
+    banos: parseInt(document.getElementById('editBanos').value, 10),
+    direccion: document.getElementById('editDireccion').value.trim(),
+    ciudad: document.getElementById('editCiudad').value.trim(),
+    estado: document.getElementById('editEstado').value.trim(),
+    latitud: document.getElementById('editLat').value.trim(),
+    longitud: document.getElementById('editLng').value.trim(),
+    descripcion: document.getElementById('editDesc').value.trim(),
+    activo: document.getElementById('editActivo').checked
+  };
+
+  try {
+    const res = await fetch(`${API_URL}/api/anfitrion/alojamientos/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwt}`
+      },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      alert('Cambios guardados correctamente.');
+      document.getElementById('modalEditar').classList.remove('open');
+      cargarAlojamientos();
+    } else {
+      const err = await res.json();
+      alert(err.detail || 'Error al actualizar el alojamiento.');
+    }
+  } catch (err) {
+    alert('Error de conexión con FastAPI.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar cambios';
+  }
+});
+
+cargarAlojamientos();
 </script>
-<script src="../notificaciones.js"></script>
-<script src="sidebar.js"></script>
 </body>
 </html>
