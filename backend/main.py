@@ -950,81 +950,112 @@ def _calcular_reportes(dias: int, anfitrion_id: str | None = None):
         "movimientos": movimientos
     }
 
-@app.get("/api/admin/reportes")
-def obtener_reportes_admin(dias: int = 30, usuario = Depends(requerir_admin)):
-    return _calcular_reportes(dias)
 
-@app.get("/api/anfitrion/reportes")
-def obtener_reportes_anfitrion(dias: int = 30, usuario = Depends(requerir_anfitrion)):
-    return _calcular_reportes(dias, usuario["id"] if usuario["rol"] == "anfitrion" else None)
+# --- BLOQUE 6: GESTIÓN DE ALOJAMIENTOS (EDITAR, PAUSAR, ELIMINAR) Y CONTRASEÑA ---
+class ActualizarAlojamientoRequest(BaseModel):
+    titulo: str
+    tipo: str
+    precio_noche: float
+    descripcion: str
+    direccion: str
+    ciudad: str | None = "Capulálpam de Méndez"
+    estado: str | None = "Oaxaca"
+    capacidad_huespedes: int = 4
+    habitaciones: int = 1
+    banos: int = 1
+    latitud: str | None = ""
+    longitud: str | None = ""
+    activo: bool = True
 
-# --- BLOQUE 3B: ANFITRIÓN · COMPROBANTES, VALIDACIÓN Y ESTADO ---
-class ActivoRequest(BaseModel):
+class CambiarEstadoAlojamientoRequest(BaseModel):
     activo: bool
 
-def _reserva_del_anfitrion(reserva_id: str, usuario: dict):
-    """Devuelve la reservación solo si pertenece a un alojamiento del anfitrión."""
-    res = (
-        supabase.table("reservaciones")
-        .select("*, alojamientos(titulo, anfitrion_id)")
-        .eq("id", reserva_id)
-        .execute()
-    )
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Reservación no encontrada")
-    reserva = res.data[0]
-    aloj = reserva.get("alojamientos") or {}
-    if usuario["rol"] == "anfitrion" and aloj.get("anfitrion_id") != usuario["id"]:
-        # 404 y no 403, para no revelar que la reservación existe
-        raise HTTPException(status_code=404, detail="Reservación no encontrada")
-    return reserva
+class CambiarPasswordRequest(BaseModel):
+    password_actual: str
+    password_nueva: str
 
-@app.get("/api/anfitrion/reservaciones/{reserva_id}/comprobante")
-def comprobante_anfitrion(reserva_id: str, usuario = Depends(requerir_anfitrion)):
-    _reserva_del_anfitrion(reserva_id, usuario)
-    return obtener_url_comprobante(reserva_id, usuario)
-
-@app.put("/api/anfitrion/reservaciones/{reserva_id}/validar")
-def validar_reservacion_anfitrion(reserva_id: str, datos: ValidarReservaRequest, usuario = Depends(requerir_anfitrion)):
-    if datos.accion not in ("aprobar", "rechazar"):
-        raise HTTPException(status_code=400, detail="Acción inválida.")
-    supabase.rpc("liberar_reservas_expiradas").execute()
-    reserva = _reserva_del_anfitrion(reserva_id, usuario)
-    if reserva["estado"] != "en_revision":
-        raise HTTPException(status_code=400, detail=f"Solo se pueden validar reservaciones en revisión. Estado actual: {reserva['estado']}")
-    return validar_reservacion(reserva_id, datos, usuario)
-
-@app.patch("/api/anfitrion/alojamientos/{aloj_id}/activo")
-def cambiar_estado_alojamiento(aloj_id: str, datos: ActivoRequest, usuario = Depends(requerir_anfitrion)):
-    q = supabase.table("alojamientos").update({"activo": datos.activo}).eq("id", aloj_id)
-    if usuario["rol"] == "anfitrion":
-        q = q.eq("anfitrion_id", usuario["id"])
-    res = q.execute()
-    if not res.data:
+def verificar_permiso_alojamiento(alojamiento_id: str, usuario: dict):
+    consulta = supabase.table("alojamientos").select("*").eq("id", alojamiento_id).execute()
+    if not consulta.data:
         raise HTTPException(status_code=404, detail="Alojamiento no encontrado")
+    aloj = consulta.data[0]
+    if usuario["rol"] != "admin" and aloj.get("anfitrion_id") != usuario["id"]:
+        raise HTTPException(status_code=403, detail="No tienes permiso para modificar este alojamiento.")
+    return aloj
+
+@app.put("/api/anfitrion/alojamientos/{alojamiento_id}")
+def actualizar_alojamiento(
+    alojamiento_id: str,
+    datos: ActualizarAlojamientoRequest,
+    usuario = Depends(requerir_anfitrion)
+):
+    verificar_permiso_alojamiento(alojamiento_id, usuario)
+    cambios = {
+        "titulo": datos.titulo.strip(),
+        "tipo": datos.tipo,
+        "precio_noche": datos.precio_noche,
+        "descripcion": datos.descripcion.strip(),
+        "direccion": datos.direccion.strip(),
+        "ciudad": (datos.ciudad or "Capulálpam de Méndez").strip(),
+        "estado": (datos.estado or "Oaxaca").strip(),
+        "capacidad_huespedes": datos.capacidad_huespedes,
+        "habitaciones": datos.habitaciones,
+        "banos": datos.banos,
+        "latitud": (datos.latitud or "").strip(),
+        "longitud": (datos.longitud or "").strip(),
+        "activo": datos.activo
+    }
+    res = supabase.table("alojamientos").update(cambios).eq("id", alojamiento_id).execute()
     return res.data[0]
 
-@app.get("/api/anfitrion/resenas")
-def resenas_anfitrion(usuario = Depends(requerir_anfitrion)):
-    # Solo reseñas de alojamientos del anfitrión (el admin ve todas)
-    aloj_q = supabase.table("alojamientos").select("id")
-    if usuario["rol"] == "anfitrion":
-        aloj_q = aloj_q.eq("anfitrion_id", usuario["id"])
-    aloj_ids = [a["id"] for a in aloj_q.execute().data or []]
-
-    if not aloj_ids:
-        return []
-
+@app.patch("/api/anfitrion/alojamientos/{alojamiento_id}/estado")
+def cambiar_estado_alojamiento(
+    alojamiento_id: str,
+    datos: CambiarEstadoAlojamientoRequest,
+    usuario = Depends(requerir_anfitrion)
+):
+    verificar_permiso_alojamiento(alojamiento_id, usuario)
     res = (
-        supabase.table("resenas")
-        .select("*, alojamientos(titulo), perfiles(nombre_completo)")
-        .in_("alojamiento_id", aloj_ids)
-        .order("creado_en", desc=True)
+        supabase.table("alojamientos")
+        .update({"activo": datos.activo})
+        .eq("id", alojamiento_id)
         .execute()
     )
-    return res.data or []
+    return res.data[0]
 
+@app.delete("/api/anfitrion/alojamientos/{alojamiento_id}")
+def eliminar_alojamiento(alojamiento_id: str, usuario = Depends(requerir_anfitrion)):
+    verificar_permiso_alojamiento(alojamiento_id, usuario)
+    try:
+        supabase.table("alojamientos").delete().eq("id", alojamiento_id).execute()
+        return {"mensaje": "Alojamiento eliminado correctamente"}
+    except Exception as e:
+        msg = str(e).lower()
+        if "foreign key" in msg or "violates" in msg or "23503" in msg:
+            raise HTTPException(
+                status_code=409,
+                detail="No se puede eliminar porque tiene reservaciones registradas. Puedes pausarlo para ocultarlo del catálogo."
+            )
+        raise HTTPException(status_code=400, detail=f"No se pudo eliminar: {str(e)}")
 
+@app.put("/api/usuarios/me/password")
+def cambiar_mi_password(datos: CambiarPasswordRequest, usuario = Depends(obtener_usuario_actual)):
+    if len(datos.password_nueva) < 8:
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 8 caracteres.")
+    try:
+        auth_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        auth_client.auth.sign_in_with_password({
+            "email": usuario["correo"],
+            "password": datos.password_actual
+        })
+    except Exception:
+        raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta.")
+
+    try:
+        supabase.auth.admin.update_user_by_id(usuario["id"], {"password": datos.password_nueva})
+        return {"mensaje": "Contraseña actualizada correctamente."}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo actualizar la contraseña: {str(e)}")
 
 # Servir la carpeta frontend desde FastAPI (debe ir al final del archivo)
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
