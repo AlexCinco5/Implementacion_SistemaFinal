@@ -8,53 +8,37 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<style>
+  .btn-sm{padding:6px 10px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:#fff;margin-left:4px}
+  .btn-sm:disabled{opacity:.6;cursor:not-allowed}
+  .btn-approve{background:#2d5a3d;color:#fff;border-color:#2d5a3d}
+  .btn-reject{background:#fbeaea;color:#a94a4a;border-color:#f5c2c2}
+  .btn-view{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
+</style>
 </head>
 <body>
 
 <div class="shell">
-  <aside class="sidebar">
-    <a class="brand" href="../index.html">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
-      <span>Entre Nubes<small>Panel anfitrión</small></span>
-    </a>
-
-    <div class="nav-group">
-      <div class="nav-label">General</div>
-      <a class="nav-link" href="alojamientosa.html">Alojamientos</a>
-      <a class="nav-link active" href="reservacionesa.html">Reservaciones <span class="count" id="navCountRes">0</span></a>
-      <a class="nav-link" href="huespedesa.html">Huéspedes</a>
-    </div>
-
-    <div class="nav-group">
-      <div class="nav-label">Contenido</div>
-      <a class="nav-link" href="resenasa.html">Reseñas</a>
-      <a class="nav-link" href="reportesa.html">Reportes</a>
-      <a class="nav-link" href="configuraciona.html">Configuración</a>
-    </div>
-
-    <div class="sidebar-foot">
-      <div class="avatar-sm" id="sideAvatar">--</div>
-      <div class="who" id="sideName">Cargando...<small>Anfitrión</small></div>
-    </div>
-  </aside>
+  <!-- Lo llena sidebar.js -->
+  <aside class="sidebar"></aside>
 
   <main class="main">
     <div class="topbar">
       <div>
-        <h1>Reservaciones</h1>
-        <div class="date" id="subRes">Cargando historial...</div>
+        <h1>Reservaciones de mis alojamientos</h1>
+        <div class="date" id="subRes">Revisa los comprobantes SPEI dentro de la ventana de 24 horas</div>
       </div>
     </div>
 
     <div class="stats">
+      <div class="stat"><div class="label">Por validar (24h)</div><div class="value" id="stRev" style="color:#c8912f">0</div></div>
       <div class="stat"><div class="label">Confirmadas</div><div class="value" id="stConf">0</div></div>
-      <div class="stat"><div class="label">Pendientes / En revisión</div><div class="value" id="stPend">0</div></div>
-      <div class="stat"><div class="label">Canceladas / Expiradas</div><div class="value" id="stCanc">0</div></div>
-      <div class="stat"><div class="label">Ingresos confirmados</div><div class="value" id="stIng">$0</div></div>
+      <div class="stat"><div class="label">Esperando SPEI (15m)</div><div class="value" id="stPend">0</div></div>
+      <div class="stat"><div class="label">Expiradas / Canceladas</div><div class="value" id="stCanc">0</div></div>
     </div>
 
     <div class="panel">
-      <div class="panel-head"><h3>Historial de reservaciones</h3></div>
+      <div class="panel-head"><h3>Todas mis reservaciones</h3></div>
       <table class="table">
         <thead>
           <tr>
@@ -63,16 +47,17 @@
             <th>Fechas</th>
             <th>Estado</th>
             <th>Total</th>
+            <th>Acciones SPEI</th>
           </tr>
         </thead>
         <tbody id="tablaReservas">
-          <tr><td colspan="5" style="text-align:center;color:#6b7a6f">Cargando reservaciones...</td></tr>
+          <tr><td colspan="6" style="text-align:center;color:var(--muted)">Cargando...</td></tr>
         </tbody>
       </table>
     </div>
 
     <div class="admin-footer">
-      <span>© 2026 Entre Nubes · Panel interno</span>
+      <span>© 2026 Entre Nubes · Panel de anfitrión</span>
       <span><a href="../index.html">Ir al sitio público</a></span>
     </div>
   </main>
@@ -83,70 +68,133 @@ const API_URL = (window.location.hostname === 'localhost' || window.location.pro
 const jwt = localStorage.getItem('jwt');
 const rol = localStorage.getItem('user_rol');
 
-if (!jwt || (rol !== 'anfitrion' && rol !== 'admin')) {
+// Solo comodidad de UI: la seguridad real la aplica el backend con el JWT.
+if (!jwt || rol !== 'anfitrion') {
   window.location.href = '../login.html';
 }
 
-const nombreGuardado = localStorage.getItem('reserva_nombre') || 'Anfitrión';
-document.getElementById('sideName').innerHTML = `${nombreGuardado}<small>Anfitrión</small>`;
-document.getElementById('sideAvatar').textContent = nombreGuardado.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+const authHeaders = { 'Authorization': `Bearer ${jwt}` };
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-function badgeEstado(est) {
-  if (est === 'confirmada' || est === 'completada') return '<span class="badge confirmed">Confirmada</span>';
-  if (est === 'en_revision') return '<span class="badge pending">En revisión (24h)</span>';
-  if (est === 'pendiente_pago') return '<span class="badge pending">Esperando SPEI (15m)</span>';
-  return `<span class="badge cancelled">${est === 'expirada' ? 'Expirada' : 'Cancelada'}</span>`;
-}
-
-document.addEventListener('DOMContentLoaded', async () => {
+async function cargarReservas() {
   try {
-    const res = await fetch(`${API_URL}/api/anfitrion/reservaciones`, {
-      headers: { 'Authorization': `Bearer ${jwt}` }
-    });
-    const reservas = await res.json();
+    const res = await fetch(`${API_URL}/api/anfitrion/reservaciones`, { headers: authHeaders });
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem('jwt');
+      window.location.href = '../login.html';
+      return;
+    }
+    const lista = await res.json();
 
-    document.getElementById('navCountRes').textContent = reservas.length;
-    document.getElementById('subRes').textContent = `${reservas.length} reservaciones en tus alojamientos`;
+    const navCount = document.getElementById('navCount');
+    if (navCount) navCount.textContent = lista.length;
+    sessionStorage.setItem('en_host_res', String(lista.length));
 
-    const conf = reservas.filter(r => r.estado === 'confirmada' || r.estado === 'completada');
-    const pend = reservas.filter(r => r.estado === 'pendiente_pago' || r.estado === 'en_revision');
-    const canc = reservas.filter(r => r.estado === 'cancelada' || r.estado === 'expirada');
-    const ingresos = conf.reduce((acc, r) => acc + Number(r.total_pagar), 0);
-
-    document.getElementById('stConf').textContent = conf.length;
-    document.getElementById('stPend').textContent = pend.length;
-    document.getElementById('stCanc').textContent = canc.length;
-    document.getElementById('stIng').textContent = `$${ingresos.toLocaleString('es-MX')}`;
+    document.getElementById('stRev').textContent = lista.filter(r => r.estado === 'en_revision').length;
+    document.getElementById('stConf').textContent = lista.filter(r => r.estado === 'confirmada' || r.estado === 'completada').length;
+    document.getElementById('stPend').textContent = lista.filter(r => r.estado === 'pendiente_pago').length;
+    document.getElementById('stCanc').textContent = lista.filter(r => r.estado === 'cancelada' || r.estado === 'expirada').length;
 
     const tbody = document.getElementById('tablaReservas');
-    if (!reservas.length) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#6b7a6f">Aún no tienes reservaciones.</td></tr>';
+    if (!lista.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Aún no hay reservaciones en tus alojamientos.</td></tr>';
       return;
     }
 
-    tbody.innerHTML = reservas.map(r => {
+    tbody.innerHTML = lista.map(r => {
       const h = r.perfiles?.nombre_completo || 'Huésped';
-      const ini = h.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+      let badge = `<span class="badge pending">${esc(r.estado)}</span>`;
+      if (r.estado === 'confirmada') badge = '<span class="badge confirmed">Confirmada</span>';
+      else if (r.estado === 'completada') badge = '<span class="badge confirmed">Completada</span>';
+      else if (r.estado === 'en_revision') badge = '<span class="badge pending">Comprobante recibido</span>';
+      else if (r.estado === 'pendiente_pago') badge = '<span class="badge pending">Esperando SPEI (15m)</span>';
+      else if (r.estado === 'expirada' || r.estado === 'cancelada') badge = `<span class="badge cancelled">${esc(r.estado)}</span>`;
+
+      let acciones = '<span style="color:var(--muted);font-size:12px">—</span>';
+      if (r.comprobante_url) {
+        acciones = `<button class="btn-sm btn-view" type="button" data-accion="ver" data-id="${esc(r.id)}">Ver recibo</button>`;
+        if (r.estado === 'en_revision') {
+          acciones += `
+            <button class="btn-sm btn-approve" type="button" data-accion="aprobar" data-id="${esc(r.id)}">Aprobar</button>
+            <button class="btn-sm btn-reject" type="button" data-accion="rechazar" data-id="${esc(r.id)}">Rechazar</button>
+          `;
+        }
+      }
+
       return `
         <tr>
-          <td>
-            <div class="guest">
-              <div class="avatar-tiny a1">${ini}</div>
-              <div><b>${h}</b><small>${r.num_huespedes} huéspedes</small></div>
-            </div>
-          </td>
-          <td>${r.alojamientos?.titulo || 'Alojamiento'}</td>
-          <td>${r.fecha_entrada} – ${r.fecha_salida}</td>
-          <td>${badgeEstado(r.estado)}</td>
+          <td><b>${esc(h)}</b><br><small style="color:var(--muted)">${esc(r.perfiles?.telefono || r.perfiles?.correo || '')}</small></td>
+          <td>${esc(r.alojamientos?.titulo || 'Alojamiento')}</td>
+          <td>${esc(r.fecha_entrada)} al ${esc(r.fecha_salida)}</td>
+          <td>${badge}</td>
           <td class="price-cell">$${Number(r.total_pagar).toLocaleString('es-MX')}</td>
+          <td style="text-align:right;white-space:nowrap">${acciones}</td>
         </tr>
       `;
     }).join('');
   } catch (e) {
     console.error(e);
+    document.getElementById('tablaReservas').innerHTML =
+      '<tr><td colspan="6" style="text-align:center;color:var(--muted)">No se pudieron cargar las reservaciones.</td></tr>';
   }
+}
+
+async function verComprobante(id) {
+  // Se abre la pestaña de inmediato para que el navegador no la bloquee
+  const win = window.open('', '_blank');
+  try {
+    const res = await fetch(`${API_URL}/api/anfitrion/reservaciones/${encodeURIComponent(id)}/comprobante`, { headers: authHeaders });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.url) {
+      if (win) win.location.href = data.url;
+      else window.location.href = data.url;
+    } else {
+      if (win) win.close();
+      alert(data.detail || `No se pudo abrir el comprobante (error ${res.status}).`);
+    }
+  } catch (e) {
+    if (win) win.close();
+    alert('Error al obtener el comprobante.');
+  }
+}
+
+async function validarReserva(id, accion, btn) {
+  const texto = accion === 'aprobar'
+    ? '¿Confirmar que el pago SPEI fue recibido?'
+    : '¿Rechazar comprobante y liberar las fechas?';
+  if (!confirm(texto)) return;
+
+  const notas = accion === 'rechazar' ? (prompt('Motivo del rechazo (opcional):') || '') : 'Pago verificado';
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(`${API_URL}/api/anfitrion/reservaciones/${encodeURIComponent(id)}/validar`, {
+      method: 'PUT',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion, notas_admin: notas })
+    });
+    if (res.ok) {
+      alert(accion === 'aprobar' ? '¡Reservación confirmada!' : 'Reservación rechazada y fechas liberadas.');
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || `Error al actualizar (${res.status}).`);
+    }
+  } catch (e) {
+    alert('Error de conexión.');
+  }
+  cargarReservas();
+}
+
+document.getElementById('tablaReservas').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-accion]');
+  if (!btn) return;
+  const { accion, id } = btn.dataset;
+  if (accion === 'ver') verComprobante(id);
+  else validarReserva(id, accion, btn);
 });
+
+cargarReservas();
 </script>
 <script src="../notificaciones.js"></script>
+<script src="sidebar.js"></script>
 </body>
 </html>

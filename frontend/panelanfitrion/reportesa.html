@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reportes · Entre Nubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="shell">
+  <!-- Lo llena sidebar.js -->
+  <aside class="sidebar"></aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Reportes</h1>
+        <div class="date" id="subReportes">Resumen de ingresos, ocupación y rendimiento de mis alojamientos</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="top-actions">
+        <select class="btn" id="selectPeriodo" aria-label="Periodo del reporte">
+          <option value="30" selected>Últimos 30 días</option>
+          <option value="90">Últimos 90 días</option>
+          <option value="365">Último año</option>
+          <option value="0">Todo el historial</option>
+        </select>
+        <button class="btn primary" type="button" id="btnExportarPdf">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M5 19h14"/></svg>
+          Exportar PDF
+        </button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="label">Ingresos confirmados</div>
+        <div class="value" id="repIngresos">$0</div>
+        <span class="delta flat" id="repIngresosSub">Cargando...</span>
+      </div>
+      <div class="stat">
+        <div class="label">Reservaciones</div>
+        <div class="value" id="repReservas">0</div>
+        <span class="delta up" id="repConfirmadas">0 confirmadas</span>
+      </div>
+      <div class="stat">
+        <div class="label">Ocupación promedio</div>
+        <div class="value" id="repOcupacion">0%</div>
+        <span class="delta flat">Sobre noches disponibles</span>
+      </div>
+      <div class="stat">
+        <div class="label">Ticket promedio</div>
+        <div class="value" id="repTicket">$0</div>
+        <span class="delta flat">Por reserva confirmada</span>
+      </div>
+    </div>
+
+    <div class="row-2">
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Ingresos por mes</h3>
+          <span class="date" style="margin:0">Últimos 7 meses</span>
+        </div>
+
+        <div class="chart-wrap">
+          <div class="chart" id="chartIngresos"></div>
+          <div class="chart-foot">
+            <span>Mejor mes: <b id="mejorMes">—</b></span>
+            <span><b id="total7Meses">$0</b> facturados</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Ocupación por alojamiento</h3>
+          <a class="link" href="alojamientosa.html">Ver detalle →</a>
+        </div>
+        <div class="listings" id="listaOcupacion">
+          <p style="color:var(--muted);padding:12px 0">Cargando...</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Movimientos recientes</h3>
+        <a class="link" href="reservacionesa.html">Ver todos →</a>
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Concepto</th>
+            <th>Alojamiento</th>
+            <th>Tipo</th>
+            <th>Fecha</th>
+            <th>Monto</th>
+          </tr>
+        </thead>
+        <tbody id="tablaMovimientos">
+          <tr><td colspan="5" style="text-align:center;color:var(--muted)">Cargando movimientos...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="admin-footer">
+      <span>© 2026 Entre Nubes · Panel de anfitrión</span>
+      <span><a href="../index.html">Ir al sitio público</a></span>
+    </div>
+  </main>
+</div>
+
+<script src="sidebar.js"></script>
+<script src="../notificaciones.js"></script>
+<script>
+const API_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8000' : '';
+const jwt = localStorage.getItem('jwt');
+const rol = localStorage.getItem('user_rol');
+
+// Solo comodidad de UI: la seguridad real la aplica el backend con el JWT.
+if (!jwt || rol !== 'anfitrion') window.location.href = '../login.html';
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function formatoMoneda(n) {
+  return '$' + Math.round(Number(n || 0)).toLocaleString('es-MX');
+}
+
+async function cargarReportes(dias) {
+  try {
+    // El backend devuelve SOLO datos de los alojamientos de este anfitrión.
+    const res = await fetch(`${API_URL}/api/anfitrion/reportes?dias=${dias}`, {
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem('jwt');
+      window.location.href = '../login.html';
+      return;
+    }
+    if (!res.ok) throw new Error('Error al cargar reportes');
+    const data = await res.json();
+
+    const r = data.resumen || {};
+    const etiquetaPeriodo = dias === 0 ? 'Todo el historial' : `Últimos ${dias} días`;
+    const fechaGen = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+    document.getElementById('subReportes').textContent = `${etiquetaPeriodo} · Generado el ${fechaGen}`;
+
+    document.getElementById('repIngresos').textContent = formatoMoneda(r.ingresos_totales);
+    document.getElementById('repIngresosSub').textContent = etiquetaPeriodo;
+    document.getElementById('repReservas').textContent = r.total_reservaciones || 0;
+    document.getElementById('repConfirmadas').textContent = `${r.confirmadas || 0} confirmadas`;
+    document.getElementById('repOcupacion').textContent = `${r.ocupacion_promedio || 0}%`;
+    document.getElementById('repTicket').textContent = formatoMoneda(r.ticket_promedio);
+
+    // Gráfica de ingresos por mes
+    const meses = data.ingresos_por_mes || [];
+    const maxVal = Math.max(...meses.map(m => Number(m.total || 0)), 1);
+    const total7 = meses.reduce((acc, m) => acc + Number(m.total || 0), 0);
+    const mejor = meses.reduce((best, cur) => (cur.total > best.total ? cur : best), { etiqueta: '—', total: 0 });
+
+    document.getElementById('mejorMes').textContent = mejor.total > 0 ? `${mejor.etiqueta} (${formatoMoneda(mejor.total)})` : 'Sin ingresos aún';
+    document.getElementById('total7Meses').textContent = formatoMoneda(total7);
+
+    document.getElementById('chartIngresos').innerHTML = meses.map(m => {
+      const pct = m.total > 0 ? Math.max(10, Math.round((m.total / maxVal) * 82)) : 3;
+      const opacidad = m.total > 0 ? '1' : '0.25';
+      return `
+        <div class="bar" title="${esc(m.etiqueta)}: ${formatoMoneda(m.total)}">
+          <div class="bar-val">${m.total > 0 ? formatoMoneda(m.total) : '$0'}</div>
+          <div class="fill" style="height:${pct}%;opacity:${opacidad}"></div>
+          <div class="lbl">${esc(m.etiqueta)}</div>
+        </div>
+      `;
+    }).join('');
+
+    // Ocupación por alojamiento
+    const listaOcup = data.por_alojamiento || [];
+    document.getElementById('listaOcupacion').innerHTML = listaOcup.length
+      ? listaOcup.map(a => `
+          <div class="listing" style="grid-template-columns:1fr auto;gap:12px">
+            <div class="info">
+              <b>${esc(a.titulo)}</b>
+              <small>${a.activo ? `${esc(a.reservas)} reservas confirmadas · ${esc(a.ocupacion)}% ocupación` : 'En pausa'}</small>
+            </div>
+            ${a.activo
+              ? `<span class="badge confirmed">${a.calificacion ? `★ ${esc(a.calificacion)}` : 'Activo'}</span>`
+              : '<span class="badge cancelled">Pausado</span>'}
+          </div>
+        `).join('')
+      : '<p style="color:var(--muted)">Aún no tienes alojamientos registrados.</p>';
+
+    // Tabla de movimientos
+    const movs = data.movimientos || [];
+    const tbody = document.getElementById('tablaMovimientos');
+    tbody.innerHTML = movs.length
+      ? movs.map(mv => {
+          let cls = 'pending';
+          let signo = '';
+          if (mv.tipo === 'Ingreso') { cls = 'confirmed'; signo = '+'; }
+          else if (mv.tipo === 'Cancelada') { cls = 'cancelled'; }
+          return `
+            <tr>
+              <td><b>${esc(mv.concepto)}</b><br><small style="color:var(--muted)">${esc(mv.huesped)}</small></td>
+              <td>${esc(mv.alojamiento)}</td>
+              <td><span class="badge ${cls}">${esc(mv.tipo)}</span></td>
+              <td>${esc(mv.fecha || '—')}</td>
+              <td class="price-cell">${signo}${formatoMoneda(mv.monto)}</td>
+            </tr>
+          `;
+        }).join('')
+      : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Sin movimientos en este periodo.</td></tr>';
+  } catch (e) {
+    console.error(e);
+    document.getElementById('tablaMovimientos').innerHTML =
+      '<tr><td colspan="5" style="text-align:center;color:var(--rose)">Error al cargar los datos del reporte.</td></tr>';
+  }
+}
+
+document.getElementById('selectPeriodo').addEventListener('change', (e) => {
+  cargarReportes(parseInt(e.target.value, 10));
+});
+
+document.getElementById('btnExportarPdf').addEventListener('click', () => {
+  window.print();
+});
+
+cargarReportes(30);
+</script>
+</body>
+</html>

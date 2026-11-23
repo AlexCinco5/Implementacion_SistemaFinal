@@ -15,8 +15,11 @@
   .config-section .desc{font-size:13px;color:var(--muted);margin-bottom:18px}
   .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
   .form-field{display:flex;flex-direction:column;gap:6px}
+  .form-field.full{grid-column:1/-1}
   .form-field label{font-size:12px;font-weight:600;color:var(--ink)}
   .form-field input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--soft);font-size:13.5px}
+  .form-field input[readonly]{opacity:.7;cursor:not-allowed}
+  .form-field small{font-size:12px;color:var(--muted)}
   .form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
   @media (max-width:640px){.form-grid{grid-template-columns:1fr}}
 </style>
@@ -24,70 +27,47 @@
 <body>
 
 <div class="shell">
-  <aside class="sidebar">
-    <a class="brand" href="../index.html">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
-      <span>Entre Nubes<small>Panel anfitrión</small></span>
-    </a>
-
-    <div class="nav-group">
-      <div class="nav-label">General</div>
-      <a class="nav-link" href="alojamientosa.html">Alojamientos</a>
-      <a class="nav-link" href="reservacionesa.html">Reservaciones</a>
-      <a class="nav-link" href="huespedesa.html">Huéspedes</a>
-    </div>
-
-    <div class="nav-group">
-      <div class="nav-label">Contenido</div>
-      <a class="nav-link" href="resenasa.html">Reseñas</a>
-      <a class="nav-link" href="reportesa.html">Reportes</a>
-      <a class="nav-link active" href="configuraciona.html">Configuración</a>
-    </div>
-
-    <div class="sidebar-foot">
-      <div class="avatar-sm" id="sideAvatar">--</div>
-      <div class="who" id="sideName">Cargando...<small>Anfitrión</small></div>
-    </div>
-  </aside>
+  <!-- Lo llena sidebar.js -->
+  <aside class="sidebar"></aside>
 
   <main class="main">
     <div class="topbar">
       <div>
         <h1>Configuración</h1>
-        <div class="date">Ajustes de tu cuenta de anfitrión</div>
+        <div class="date">Administra los datos de tu perfil de anfitrión</div>
       </div>
-      <div class="spacer"></div>
-      <button class="btn" type="button" onclick="cerrarSesion()" style="color:#a94a4a">Cerrar sesión</button>
     </div>
 
-    <form id="formConfig">
+    <form id="formPerfil">
       <div class="config-section">
-        <h3>Perfil de anfitrión</h3>
-        <p class="desc">Información de tu cuenta.</p>
+        <h3>Mi perfil</h3>
+        <p class="desc">Estos datos se usan para identificarte ante los huéspedes y el administrador.</p>
         <div class="form-grid">
           <div class="form-field">
             <label for="nombre">Nombre completo</label>
-            <input id="nombre" type="text" required>
-          </div>
-          <div class="form-field">
-            <label for="email">Correo electrónico</label>
-            <input id="email" type="email" disabled>
+            <input id="nombre" type="text" required maxlength="100" placeholder="Tu nombre">
           </div>
           <div class="form-field">
             <label for="telefono">Teléfono</label>
-            <input id="telefono" type="tel">
+            <input id="telefono" type="tel" maxlength="20" placeholder="Ej. 951 123 4567">
           </div>
-          <div class="form-field">
-            <label for="rol">Rol</label>
-            <input id="rol" type="text" value="Anfitrión" disabled>
+          <div class="form-field full">
+            <label for="correo">Correo electrónico</label>
+            <input id="correo" type="email" readonly>
+            <small>Tu correo es tu usuario de acceso y no se puede cambiar desde aquí. Si necesitas cambiarlo, contacta al administrador.</small>
           </div>
         </div>
       </div>
 
       <div class="form-actions">
-        <button class="btn primary" type="submit">Guardar cambios</button>
+        <button class="btn primary" type="submit" id="btnGuardar">Guardar cambios</button>
       </div>
     </form>
+
+    <div class="admin-footer">
+      <span>© 2026 Entre Nubes · Panel de anfitrión</span>
+      <span><a href="../index.html">Ir al sitio público</a></span>
+    </div>
   </main>
 </div>
 
@@ -96,46 +76,73 @@ const API_URL = (window.location.hostname === 'localhost' || window.location.pro
 const jwt = localStorage.getItem('jwt');
 const rol = localStorage.getItem('user_rol');
 
-if (!jwt || (rol !== 'anfitrion' && rol !== 'admin')) {
+// Solo comodidad de UI: la seguridad real la aplica el backend con el JWT.
+if (!jwt || rol !== 'anfitrion') {
   window.location.href = '../login.html';
 }
 
+const authHeaders = { 'Authorization': `Bearer ${jwt}` };
+
 document.addEventListener('DOMContentLoaded', async () => {
-  const res = await fetch(`${API_URL}/api/usuarios/me`, {
-    headers: { 'Authorization': `Bearer ${jwt}` }
-  });
-  const perfil = await res.json();
-  document.getElementById('nombre').value = perfil.nombre_completo;
-  document.getElementById('email').value = perfil.correo;
-  document.getElementById('telefono').value = perfil.telefono || '';
-  document.getElementById('rol').value = perfil.rol;
-
-  document.getElementById('sideName').innerHTML = `${perfil.nombre_completo}<small>${perfil.rol}</small>`;
-  document.getElementById('sideAvatar').textContent = perfil.nombre_completo.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-});
-
-document.getElementById('formConfig').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const res = await fetch(`${API_URL}/api/usuarios/me`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
-    body: JSON.stringify({
-      nombre_completo: document.getElementById('nombre').value.trim(),
-      telefono: document.getElementById('telefono').value.trim()
-    })
-  });
-  if (res.ok) {
-    localStorage.setItem('reserva_nombre', document.getElementById('nombre').value.trim());
-    alert('Perfil actualizado.');
-    location.reload();
+  try {
+    const res = await fetch(`${API_URL}/api/usuarios/me`, { headers: authHeaders });
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem('jwt');
+      window.location.href = '../login.html';
+      return;
+    }
+    const perfil = await res.json();
+    document.getElementById('nombre').value = perfil.nombre_completo || '';
+    document.getElementById('telefono').value = perfil.telefono || '';
+    document.getElementById('correo').value = perfil.correo || '';
+  } catch (e) {
+    console.error(e);
+    alert('No se pudo cargar tu perfil.');
   }
 });
 
-function cerrarSesion() {
-  localStorage.clear();
-  window.location.href = '../login.html';
-}
+document.getElementById('formPerfil').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('btnGuardar');
+  const nombre = document.getElementById('nombre').value.trim();
+  const telefono = document.getElementById('telefono').value.trim();
+
+  if (!nombre) {
+    alert('El nombre no puede estar vacío.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+  try {
+    const res = await fetch(`${API_URL}/api/usuarios/me`, {
+      method: 'PUT',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre_completo: nombre, telefono })
+    });
+    if (res.ok) {
+      // Actualiza el nombre guardado y el que se ve en el sidebar
+      localStorage.setItem('reserva_nombre', nombre);
+      const elNombre = document.getElementById('hostName');
+      const elAvatar = document.getElementById('hostAvatar');
+      if (elNombre) elNombre.textContent = nombre;
+      if (elAvatar) {
+        elAvatar.textContent = nombre.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'AN';
+      }
+      alert('Perfil actualizado correctamente.');
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || 'Error al guardar los cambios.');
+    }
+  } catch (err) {
+    alert('Error de conexión con el servidor.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar cambios';
+  }
+});
 </script>
 <script src="../notificaciones.js"></script>
+<script src="sidebar.js"></script>
 </body>
 </html>

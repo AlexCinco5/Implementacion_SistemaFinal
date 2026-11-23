@@ -12,31 +12,8 @@
 <body>
 
 <div class="shell">
-  <aside class="sidebar">
-    <a class="brand" href="../index.html">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V12M12 12c0-4 3-7 7-7 0 4-3 7-7 7Zm0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0-10c0-2-1.5-4-4-4 0 2 1.5 4 4 4Z" fill="currentColor" stroke="none"/></svg>
-      <span>Entre Nubes<small>Panel anfitrión</small></span>
-    </a>
-
-    <div class="nav-group">
-      <div class="nav-label">General</div>
-      <a class="nav-link" href="alojamientosa.html">Alojamientos</a>
-      <a class="nav-link" href="reservacionesa.html">Reservaciones</a>
-      <a class="nav-link active" href="huespedesa.html">Huéspedes</a>
-    </div>
-
-    <div class="nav-group">
-      <div class="nav-label">Contenido</div>
-      <a class="nav-link" href="resenasa.html">Reseñas</a>
-      <a class="nav-link" href="reportesa.html">Reportes</a>
-      <a class="nav-link" href="configuraciona.html">Configuración</a>
-    </div>
-
-    <div class="sidebar-foot">
-      <div class="avatar-sm" id="sideAvatar">--</div>
-      <div class="who" id="sideName">Cargando...<small>Anfitrión</small></div>
-    </div>
-  </aside>
+  <!-- Lo llena sidebar.js -->
+  <aside class="sidebar"></aside>
 
   <main class="main">
     <div class="topbar">
@@ -47,12 +24,12 @@
     </div>
 
     <div class="stats">
-      <div class="stat"><div class="label">Total huéspedes</div><div class="value" id="stTotalH">0</div></div>
-      <div class="stat"><div class="label">Recurrentes</div><div class="value" id="stRec">0</div></div>
+      <div class="stat"><div class="label">Huéspedes en mis alojamientos</div><div class="value" id="stTotalH">0</div></div>
+      <div class="stat"><div class="label">Reservas totales</div><div class="value" id="stConRes">0</div></div>
     </div>
 
     <div class="panel">
-      <div class="panel-head"><h3>Lista de huéspedes</h3></div>
+      <div class="panel-head"><h3>Mis huéspedes</h3></div>
       <table class="table">
         <thead>
           <tr>
@@ -64,13 +41,13 @@
           </tr>
         </thead>
         <tbody id="tablaHuespedes">
-          <tr><td colspan="5" style="text-align:center;color:#6b7a6f">Cargando...</td></tr>
+          <tr><td colspan="5" style="text-align:center;color:var(--muted)">Cargando...</td></tr>
         </tbody>
       </table>
     </div>
 
     <div class="admin-footer">
-      <span>© 2026 Entre Nubes · Panel interno</span>
+      <span>© 2026 Entre Nubes · Panel de anfitrión</span>
       <span><a href="../index.html">Ir al sitio público</a></span>
     </div>
   </main>
@@ -81,53 +58,69 @@ const API_URL = (window.location.hostname === 'localhost' || window.location.pro
 const jwt = localStorage.getItem('jwt');
 const rol = localStorage.getItem('user_rol');
 
-if (!jwt || (rol !== 'anfitrion' && rol !== 'admin')) {
-  window.location.href = '../login.html';
-}
+// Solo comodidad de UI: la seguridad real la aplica el backend con el JWT.
+if (!jwt || rol !== 'anfitrion') window.location.href = '../login.html';
 
-const nombreGuardado = localStorage.getItem('reserva_nombre') || 'Anfitrión';
-document.getElementById('sideName').innerHTML = `${nombreGuardado}<small>Anfitrión</small>`;
-document.getElementById('sideAvatar').textContent = nombreGuardado.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const ESTADOS = {
+  confirmada:     { clase: 'confirmed', texto: 'Confirmada' },
+  completada:     { clase: 'confirmed', texto: 'Completada' },
+  en_revision:    { clase: 'pending',   texto: 'Comprobante recibido' },
+  pendiente_pago: { clase: 'pending',   texto: 'Esperando SPEI' },
+  cancelada:      { clase: 'cancelled', texto: 'Cancelada' },
+  expirada:       { clase: 'cancelled', texto: 'Expirada' }
+};
 
 document.addEventListener('DOMContentLoaded', async () => {
+  const tbody = document.getElementById('tablaHuespedes');
   try {
     const res = await fetch(`${API_URL}/api/anfitrion/huespedes`, {
       headers: { 'Authorization': `Bearer ${jwt}` }
     });
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem('jwt');
+      window.location.href = '../login.html';
+      return;
+    }
     const lista = await res.json();
 
     document.getElementById('stTotalH').textContent = lista.length;
-    document.getElementById('stRec').textContent = lista.filter(h => h.total_reservas > 1).length;
-    document.getElementById('subHuesp').textContent = `${lista.length} huéspedes han reservado contigo`;
+    document.getElementById('stConRes').textContent = lista.reduce((t, h) => t + Number(h.total_reservas || 0), 0);
+    document.getElementById('subHuesp').textContent =
+      `${lista.length} ${lista.length === 1 ? 'huésped ha' : 'huéspedes han'} reservado en tus alojamientos`;
 
-    const tbody = document.getElementById('tablaHuespedes');
     if (!lista.length) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#6b7a6f">Aún no hay huéspedes registrados.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Aún no tienes huéspedes en tus alojamientos.</td></tr>';
       return;
     }
 
     tbody.innerHTML = lista.map(h => {
-      const ini = h.nombre_completo.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+      const nombre = h.nombre_completo || 'Huésped';
+      const ini = nombre.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'HU';
+      const est = ESTADOS[h.ultimo_estado] || { clase: 'pending', texto: h.ultimo_estado || '—' };
       return `
         <tr>
           <td>
             <div class="guest">
-              <div class="avatar-tiny a1">${ini}</div>
-              <div><b>${h.nombre_completo}</b><small>${h.telefono || 'Sin teléfono'}</small></div>
+              <div class="avatar-tiny a2">${esc(ini)}</div>
+              <div><b>${esc(nombre)}</b><small>${esc(h.telefono || 'Sin teléfono')}</small></div>
             </div>
           </td>
-          <td>${h.correo}</td>
-          <td>${h.total_reservas} reservas</td>
-          <td><span class="badge confirmed">${h.ultimo_estado}</span></td>
-          <td>${h.ultimo_viaje}</td>
+          <td>${esc(h.correo || '—')}</td>
+          <td>${esc(h.total_reservas)} ${Number(h.total_reservas) === 1 ? 'reserva' : 'reservas'}</td>
+          <td><span class="badge ${est.clase}">${esc(est.texto)}</span></td>
+          <td>${esc(h.ultimo_viaje || '—')}</td>
         </tr>
       `;
     }).join('');
   } catch (e) {
     console.error(e);
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">No se pudieron cargar los huéspedes.</td></tr>';
   }
 });
 </script>
 <script src="../notificaciones.js"></script>
+<script src="sidebar.js"></script>
 </body>
 </html>

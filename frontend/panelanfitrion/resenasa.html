@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reseñas · Entre Nubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="shell">
+  <!-- Lo llena sidebar.js -->
+  <aside class="sidebar"></aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Reseñas</h1>
+        <div class="date" id="subResenas">Cargando calificaciones...</div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Calificación promedio</div><div class="value" id="stProm">0.0</div></div>
+      <div class="stat"><div class="label">Total reseñas</div><div class="value" id="stTotalR">0</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>Reseñas de mis alojamientos</h3></div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Huésped</th>
+            <th>Alojamiento</th>
+            <th>Calificación</th>
+            <th>Comentario</th>
+            <th>Fecha</th>
+          </tr>
+        </thead>
+        <tbody id="tablaResenas">
+          <tr><td colspan="5" style="text-align:center;color:var(--muted)">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="admin-footer">
+      <span>© 2026 Entre Nubes · Panel de anfitrión</span>
+      <span><a href="../index.html">Ir al sitio público</a></span>
+    </div>
+  </main>
+</div>
+
+<script>
+const API_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8000' : '';
+const jwt = localStorage.getItem('jwt');
+const rol = localStorage.getItem('user_rol');
+
+// Solo comodidad de UI: la seguridad real la aplica el backend con el JWT.
+if (!jwt || rol !== 'anfitrion') window.location.href = '../login.html';
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const tbody = document.getElementById('tablaResenas');
+  try {
+    // El backend debe devolver SOLO reseñas de alojamientos de este anfitrión.
+    const res = await fetch(`${API_URL}/api/anfitrion/resenas`, {
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem('jwt');
+      window.location.href = '../login.html';
+      return;
+    }
+    const lista = await res.json();
+
+    document.getElementById('stTotalR').textContent = lista.length;
+    const prom = lista.length
+      ? (lista.reduce((acc, r) => acc + Number(r.calificacion), 0) / lista.length).toFixed(2)
+      : '0.0';
+    document.getElementById('stProm').textContent = prom;
+    document.getElementById('subResenas').textContent = lista.length
+      ? `${lista.length} ${lista.length === 1 ? 'reseña' : 'reseñas'} en tus alojamientos · ${prom} promedio`
+      : 'Aún no hay reseñas en tus alojamientos';
+
+    if (!lista.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Aún no hay reseñas.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = lista.map(r => {
+      const h = r.perfiles?.nombre_completo || 'Huésped';
+      const fecha = r.creado_en ? new Date(r.creado_en).toLocaleDateString('es-MX') : '—';
+      return `
+        <tr>
+          <td><b>${esc(h)}</b></td>
+          <td>${esc(r.alojamientos?.titulo || 'Alojamiento')}</td>
+          <td><span class="badge confirmed">★ ${esc(r.calificacion)}</span></td>
+          <td>${esc(r.comentario || 'Sin comentario')}</td>
+          <td>${esc(fecha)}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (e) {
+    console.error(e);
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">No se pudieron cargar las reseñas.</td></tr>';
+  }
+});
+</script>
+<script src="../notificaciones.js"></script>
+<script src="sidebar.js"></script>
+</body>
+</html>

@@ -433,6 +433,7 @@ def listar_mis_alojamientos(usuario = Depends(requerir_anfitrion)):
 
 @app.post("/api/anfitrion/alojamientos")
 async def crear_alojamiento(
+    capacidad: int = Form(4),
     nombre: str = Form(...),
     tipo: str = Form(...),
     precio: float = Form(...),
@@ -473,7 +474,7 @@ async def crear_alojamiento(
         "longitud": longitud,
         "amenidades": amenidades,
         "imagenes": urls_imagenes,
-        "capacidad_huespedes": 4,
+        "capacidad_huespedes": capacidad,
         "habitaciones": 1,
         "banos": 1,
         "activo": True
@@ -798,20 +799,25 @@ def marcar_notificacion_leida(notif_id: str, usuario = Depends(obtener_usuario_a
         raise HTTPException(status_code=404, detail="Notificación no encontrada")
     return res.data[0]
 
-@app.get("/api/admin/reportes")
-def obtener_reportes_admin(dias: int = 30, usuario = Depends(requerir_admin)):
+def _calcular_reportes(dias: int, anfitrion_id: str | None = None):
     supabase.rpc("liberar_reservas_expiradas").execute()
 
-    alojamientos = supabase.table("alojamientos").select("*").order("creado_en", desc=True).execute().data or []
-    reservas = (
-        supabase.table("reservaciones")
-        .select("*, alojamientos(titulo), perfiles(nombre_completo)")
-        .order("creado_en", desc=True)
-        .execute()
-        .data or []
-    )
-    resenas = supabase.table("resenas").select("alojamiento_id, calificacion").execute().data or []
+    aloj_q = supabase.table("alojamientos").select("*")
+    if anfitrion_id:
+        aloj_q = aloj_q.eq("anfitrion_id", anfitrion_id)
+    alojamientos = aloj_q.order("creado_en", desc=True).execute().data or []
+    aloj_ids = [a["id"] for a in alojamientos]
 
+    if anfitrion_id and not aloj_ids:
+        reservas, resenas = [], []
+    else:
+        res_q = supabase.table("reservaciones").select("*, alojamientos(titulo), perfiles(nombre_completo)")
+        rev_q = supabase.table("resenas").select("alojamiento_id, calificacion")
+        if anfitrion_id:
+            res_q = res_q.in_("alojamiento_id", aloj_ids)
+            rev_q = rev_q.in_("alojamiento_id", aloj_ids)
+        reservas = res_q.order("creado_en", desc=True).execute().data or []
+        resenas = rev_q.execute().data or []
     ahora = datetime.now(timezone.utc)
     fecha_corte = (ahora - timedelta(days=dias)) if dias > 0 else None
 
@@ -943,6 +949,82 @@ def obtener_reportes_admin(dias: int = 30, usuario = Depends(requerir_admin)):
         "por_alojamiento": por_alojamiento,
         "movimientos": movimientos
     }
+
+@app.get("/api/admin/reportes")
+def obtener_reportes_admin(dias: int = 30, usuario = Depends(requerir_admin)):
+    return _calcular_reportes(dias)
+
+@app.get("/api/anfitrion/reportes")
+def obtener_reportes_anfitrion(dias: int = 30, usuario = Depends(requerir_anfitrion)):
+    return _calcular_reportes(dias, usuario["id"] if usuario["rol"] == "anfitrion" else None)
+
+# --- BLOQUE 3B: ANFITRIÓN · COMPROBANTES, VALIDACIÓN Y ESTADO ---
+class ActivoRequest(BaseModel):
+    activo: bool
+
+def _reserva_del_anfitrion(reserva_id: str, usuario: dict):
+    """Devuelve la reservación solo si pertenece a un alojamiento del anfitrión."""
+    res = (
+        supabase.table("reservaciones")
+        .select("*, alojamientos(titulo, anfitrion_id)")
+        .eq("id", reserva_id)
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Reservación no encontrada")
+    reserva = res.data[0]
+    aloj = reserva.get("alojamientos") or {}
+    if usuario["rol"] == "anfitrion" and aloj.get("anfitrion_id") != usuario["id"]:
+        # 404 y no 403, para no revelar que la reservación existe
+        raise HTTPException(status_code=404, detail="Reservación no encontrada")
+    return reserva
+
+@app.get("/api/anfitrion/reservaciones/{reserva_id}/comprobante")
+def comprobante_anfitrion(reserva_id: str, usuario = Depends(requerir_anfitrion)):
+    _reserva_del_anfitrion(reserva_id, usuario)
+    return obtener_url_comprobante(reserva_id, usuario)
+
+@app.put("/api/anfitrion/reservaciones/{reserva_id}/validar")
+def validar_reservacion_anfitrion(reserva_id: str, datos: ValidarReservaRequest, usuario = Depends(requerir_anfitrion)):
+    if datos.accion not in ("aprobar", "rechazar"):
+        raise HTTPException(status_code=400, detail="Acción inválida.")
+    supabase.rpc("liberar_reservas_expiradas").execute()
+    reserva = _reserva_del_anfitrion(reserva_id, usuario)
+    if reserva["estado"] != "en_revision":
+        raise HTTPException(status_code=400, detail=f"Solo se pueden validar reservaciones en revisión. Estado actual: {reserva['estado']}")
+    return validar_reservacion(reserva_id, datos, usuario)
+
+@app.patch("/api/anfitrion/alojamientos/{aloj_id}/activo")
+def cambiar_estado_alojamiento(aloj_id: str, datos: ActivoRequest, usuario = Depends(requerir_anfitrion)):
+    q = supabase.table("alojamientos").update({"activo": datos.activo}).eq("id", aloj_id)
+    if usuario["rol"] == "anfitrion":
+        q = q.eq("anfitrion_id", usuario["id"])
+    res = q.execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Alojamiento no encontrado")
+    return res.data[0]
+
+@app.get("/api/anfitrion/resenas")
+def resenas_anfitrion(usuario = Depends(requerir_anfitrion)):
+    # Solo reseñas de alojamientos del anfitrión (el admin ve todas)
+    aloj_q = supabase.table("alojamientos").select("id")
+    if usuario["rol"] == "anfitrion":
+        aloj_q = aloj_q.eq("anfitrion_id", usuario["id"])
+    aloj_ids = [a["id"] for a in aloj_q.execute().data or []]
+
+    if not aloj_ids:
+        return []
+
+    res = (
+        supabase.table("resenas")
+        .select("*, alojamientos(titulo), perfiles(nombre_completo)")
+        .in_("alojamiento_id", aloj_ids)
+        .order("creado_en", desc=True)
+        .execute()
+    )
+    return res.data or []
+
+
 
 # Servir la carpeta frontend desde FastAPI (debe ir al final del archivo)
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
