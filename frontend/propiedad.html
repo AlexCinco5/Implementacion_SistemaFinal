@@ -7,7 +7,22 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
 <style>
+.dates input.flatpickr-input,.dates input.form-control{
+  border:0;outline:0;width:100%;padding:3px 0 0;font-size:14px;background:transparent;cursor:pointer;
+}
+.flatpickr-day.en-fp-booked,
+.flatpickr-day.en-fp-booked:hover{
+  background:#fbeaea!important;color:#a94a4a!important;border-color:transparent!important;
+  text-decoration:line-through;cursor:not-allowed;font-weight:600;
+}
+.flatpickr-day.selected,
+.flatpickr-day.selected:hover{
+  background:var(--pine)!important;border-color:var(--pine)!important;color:#fff!important;
+}
 :root{
   --pine:#2d5a3d;--pine-d:#1e3d28;--moss:#4a7c59;--sage:#8aa88f;--mint:#e6efe8;
   --cream:#fafaf5;--ink:#1a2e20;--muted:#6b7a6f;--line:#e2e8de;--soft:#f2f5ee;
@@ -185,11 +200,11 @@ button{font:inherit;cursor:pointer;background:none;border:0;padding:0;color:inhe
           <div class="dates">
             <div>
               <label for="in">Llegada</label>
-              <input id="in" type="date" required>
+              <input id="in" type="text" placeholder="dd/mm/aaaa" readonly required>
             </div>
             <div>
               <label for="out">Salida</label>
-              <input id="out" type="date" required>
+              <input id="out" type="text" placeholder="dd/mm/aaaa" readonly required>
             </div>
           </div>
           <div class="guests">
@@ -222,12 +237,20 @@ document.getElementById('saveBtn').addEventListener('click', function(){
 const diasOcupados = new Set();
 let mesVista = new Date();
 mesVista.setDate(1);
+let fpIn = null;
+let fpOut = null;
 
 function aIso(fecha) {
   const y = fecha.getFullYear();
   const m = String(fecha.getMonth() + 1).padStart(2, '0');
   const d = String(fecha.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+function sumarDias(iso, dias) {
+  const f = new Date(iso + 'T00:00:00');
+  f.setDate(f.getDate() + dias);
+  return aIso(f);
 }
 
 function rangoTieneOcupados(inicioIso, finIso) {
@@ -238,6 +261,80 @@ function rangoTieneOcupados(inicioIso, finIso) {
     cur.setDate(cur.getDate() + 1);
   }
   return false;
+}
+
+function obtenerPrimerDiaOcupadoDespuesDe(inicioIso) {
+  const ordenados = Array.from(diasOcupados).sort();
+  return ordenados.find(d => d > inicioIso) || null;
+}
+
+function actualizarLimitesSalida(entradaIso) {
+  if (!fpOut) return;
+  if (!entradaIso) {
+    fpOut.set('minDate', sumarDias(aIso(new Date()), 1));
+    fpOut.set('maxDate', null);
+    return;
+  }
+  fpOut.set('minDate', sumarDias(entradaIso, 1));
+  const proximoOcupado = obtenerPrimerDiaOcupadoDespuesDe(entradaIso);
+  // Evita seleccionar una salida que cruce una fecha ya reservada
+  fpOut.set('maxDate', proximoOcupado ? sumarDias(proximoOcupado, -1) : null);
+}
+
+function inicializarPickers(entradaInicial, salidaInicial) {
+  const listaBloqueados = Array.from(diasOcupados);
+  const marcarOcupado = (_, __, ___, dayElem) => {
+    const iso = aIso(dayElem.dateObj);
+    if (diasOcupados.has(iso)) {
+      dayElem.classList.add('en-fp-booked');
+      dayElem.title = 'Día reservado';
+    }
+  };
+
+  fpIn = flatpickr('#in', {
+    locale: 'es',
+    dateFormat: 'Y-m-d',
+    altInput: true,
+    altFormat: 'd/m/Y',
+    minDate: 'today',
+    disable: listaBloqueados,
+    onDayCreate: marcarOcupado,
+    onChange: (selectedDates, dateStr) => {
+      if (!dateStr) return;
+      actualizarLimitesSalida(dateStr);
+      const outActual = document.getElementById('out').value;
+      if (outActual && (outActual <= dateStr || rangoTieneOcupados(dateStr, outActual))) {
+        fpOut.clear();
+      }
+      renderCalendario();
+    }
+  });
+
+  fpOut = flatpickr('#out', {
+    locale: 'es',
+    dateFormat: 'Y-m-d',
+    altInput: true,
+    altFormat: 'd/m/Y',
+    minDate: sumarDias(aIso(new Date()), 1),
+    disable: listaBloqueados,
+    onDayCreate: marcarOcupado,
+    onChange: (selectedDates, dateStr) => {
+      const inActual = document.getElementById('in').value;
+      if (inActual && dateStr && rangoTieneOcupados(inActual, dateStr)) {
+        alert('El rango seleccionado incluye días que ya están reservados.');
+        fpOut.clear();
+      }
+      renderCalendario();
+    }
+  });
+
+  if (entradaInicial && !diasOcupados.has(entradaInicial)) {
+    fpIn.setDate(entradaInicial, false);
+    actualizarLimitesSalida(entradaInicial);
+    if (salidaInicial && salidaInicial > entradaInicial && !rangoTieneOcupados(entradaInicial, salidaInicial)) {
+      fpOut.setDate(salidaInicial, false);
+    }
+  }
 }
 
 function renderCalendario() {
@@ -281,18 +378,22 @@ function renderCalendario() {
   grid.querySelectorAll('.cal-day.avail').forEach(btn => {
     btn.addEventListener('click', () => {
       const elegida = btn.dataset.date;
-      const inEl = document.getElementById('in');
-      const outEl = document.getElementById('out');
+      const inVal = document.getElementById('in').value;
+      const outVal = document.getElementById('out').value;
 
-      if (!inEl.value || (inEl.value && outEl.value) || elegida <= inEl.value) {
-        inEl.value = elegida;
-        outEl.value = '';
+      if (!inVal || (inVal && outVal) || elegida <= inVal) {
+        if (fpIn) fpIn.setDate(elegida, false);
+        else document.getElementById('in').value = elegida;
+        if (fpOut) fpOut.clear();
+        else document.getElementById('out').value = '';
+        actualizarLimitesSalida(elegida);
       } else {
-        if (rangoTieneOcupados(inEl.value, elegida)) {
+        if (rangoTieneOcupados(inVal, elegida)) {
           alert('El rango seleccionado incluye días que ya están reservados. Elige otras fechas.');
           return;
         }
-        outEl.value = elegida;
+        if (fpOut) fpOut.setDate(elegida, false);
+        else document.getElementById('out').value = elegida;
       }
       renderCalendario();
     });
@@ -311,19 +412,10 @@ document.getElementById('calNext').addEventListener('click', () => {
 document.addEventListener('DOMContentLoaded', async () => {
   const urlParams = new URLSearchParams(window.location.search);
   const id = urlParams.get('id');
+  const entradaParam = urlParams.get('entrada') || '';
+  const salidaParam = urlParams.get('salida') || '';
 
-  const hoy = aIso(new Date());
-  const inEl = document.getElementById('in');
-  const outEl = document.getElementById('out');
-  inEl.min = hoy;
-  outEl.min = hoy;
-
-  if (urlParams.get('entrada')) inEl.value = urlParams.get('entrada');
-  if (urlParams.get('salida')) outEl.value = urlParams.get('salida');
   if (urlParams.get('huespedes')) document.getElementById('g').value = urlParams.get('huespedes');
-
-  inEl.addEventListener('change', renderCalendario);
-  outEl.addEventListener('change', renderCalendario);
 
   if (!id) {
     document.getElementById('propTitulo').textContent = 'Propiedad no encontrada';
@@ -349,6 +441,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
     }
+
+    inicializarPickers(entradaParam, salidaParam);
     renderCalendario();
 
     document.getElementById('propTitulo').textContent = prop.titulo;
@@ -377,8 +471,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('formReservar').addEventListener('submit', (e) => {
       e.preventDefault();
-      const entrada = inEl.value;
-      const salida = outEl.value;
+      const entrada = document.getElementById('in').value;
+      const salida = document.getElementById('out').value;
       const huespedes = document.getElementById('g').value;
 
       if (!entrada || !salida || salida <= entrada) {
