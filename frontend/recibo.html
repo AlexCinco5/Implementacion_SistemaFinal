@@ -224,18 +224,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       desc.textContent = 'El tiempo límite venció o la reserva fue cancelada. Las fechas han sido liberadas.';
     }
 
-    // Subida de comprobante
+// Subida de comprobante
     document.getElementById('formComprobante').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fileInput = document.getElementById('archivoComprobante');
       if (!fileInput.files.length) return;
+
+      const archivo = fileInput.files[0];
+      if (archivo.size > 4 * 1024 * 1024) {
+        alert('El archivo es demasiado pesado (máximo 4 MB). Sube una captura o PDF más ligero.');
+        return;
+      }
 
       const btn = document.getElementById('btnSubir');
       btn.disabled = true;
       btn.textContent = 'Subiendo comprobante...';
 
       const formData = new FormData();
-      formData.append('archivo', fileInput.files[0]);
+      formData.append('archivo', archivo);
 
       try {
         const upRes = await fetch(`${API_URL}/api/reservaciones/${folio}/comprobante`, {
@@ -243,19 +249,24 @@ document.addEventListener('DOMContentLoaded', async () => {
           headers: { 'Authorization': `Bearer ${jwt}` },
           body: formData
         });
-        const upData = await upRes.json();
+
+        const rawText = await upRes.text();
+        let upData = {};
+        try { upData = JSON.parse(rawText); } catch (_) {}
+
         if (upRes.ok) {
           alert('¡Comprobante enviado! El administrador lo revisará en las próximas 24 horas.');
           location.reload();
         } else {
-          alert(upData.detail || 'Error al subir el comprobante.');
+          alert(upData.detail || `Error del servidor (${upRes.status}): ${rawText.slice(0, 180)}`);
           btn.disabled = false;
           btn.textContent = 'Enviar comprobante para validación';
         }
       } catch (err) {
         console.error(err);
-        alert('Error de conexión con el servidor.');
+        alert('No se pudo conectar con el servidor. Verifica que FastAPI esté activo.');
         btn.disabled = false;
+        btn.textContent = 'Enviar comprobante para validación';
       }
     });
   } catch (error) {

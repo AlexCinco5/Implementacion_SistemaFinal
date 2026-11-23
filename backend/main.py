@@ -64,7 +64,8 @@ def obtener_usuario_actual(authorization: str = Header(None)):
 @app.post("/api/auth/registro")
 def registrar_usuario(datos: RegistroRequest):
     try:
-        auth_res = supabase.auth.sign_up({"email": datos.correo, "password": datos.password})
+        auth_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        auth_res = auth_client.auth.sign_up({"email": datos.correo, "password": datos.password})
         if not auth_res.user:
             raise HTTPException(status_code=400, detail="No se pudo crear el usuario")
 
@@ -84,12 +85,13 @@ def registrar_usuario(datos: RegistroRequest):
 @app.post("/api/auth/login")
 def iniciar_sesion(datos: LoginRequest):
     try:
-        auth_res = supabase.auth.sign_in_with_password({"email": datos.correo, "password": datos.password})
+        auth_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        auth_res = auth_client.auth.sign_in_with_password({"email": datos.correo, "password": datos.password})
         perfil = supabase.table("perfiles").select("*").eq("id", auth_res.user.id).single().execute()
         return {"jwt": auth_res.session.access_token, "user": perfil.data}
     except Exception:
         raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
-
+    
 @app.get("/api/usuarios/me")
 def ver_mi_perfil(usuario = Depends(obtener_usuario_actual)):
     return usuario
@@ -116,14 +118,52 @@ def mis_reservaciones(usuario = Depends(obtener_usuario_actual)):
 
 # --- BLOQUE 2: CATÁLOGO, RESERVAS Y COMPROBANTE SPEI ---
 @app.get("/api/alojamientos")
-def listar_alojamientos(capacidad: int | None = None, tipo: str | None = None):
+def listar_alojamientos(
+    capacidad: int | None = None,
+    tipo: str | None = None,
+    fecha_entrada: date | None = None,
+    fecha_salida: date | None = None
+):
+    supabase.rpc("liberar_reservas_expiradas").execute()
+
     query = supabase.table("alojamientos").select("*").eq("activo", True)
     if capacidad:
         query = query.gte("capacidad_huespedes", capacidad)
     if tipo:
         query = query.ilike("tipo", f"%{tipo}%")
-    res = query.order("creado_en", desc=True).execute()
-    return res.data
+    alojamientos = query.order("creado_en", desc=True).execute().data or []
+
+    if fecha_entrada and fecha_salida:
+        if fecha_salida <= fecha_entrada:
+            raise HTTPException(status_code=400, detail="La fecha de salida debe ser posterior a la llegada.")
+        ocupadas = (
+            supabase.table("reservaciones")
+            .select("alojamiento_id")
+            .in_("estado", ["pendiente_pago", "en_revision", "confirmada"])
+            .lt("fecha_entrada", fecha_salida.isoformat())
+            .gt("fecha_salida", fecha_entrada.isoformat())
+            .execute()
+            .data or []
+        )
+        ids_ocupados = {r["alojamiento_id"] for r in ocupadas}
+        alojamientos = [a for a in alojamientos if a["id"] not in ids_ocupados]
+
+    return alojamientos
+
+@app.get("/api/alojamientos/{alojamiento_id}/disponibilidad")
+def disponibilidad_alojamiento(alojamiento_id: str):
+    supabase.rpc("liberar_reservas_expiradas").execute()
+    hoy = date.today().isoformat()
+    res = (
+        supabase.table("reservaciones")
+        .select("fecha_entrada, fecha_salida, estado")
+        .eq("alojamiento_id", alojamiento_id)
+        .in_("estado", ["pendiente_pago", "en_revision", "confirmada"])
+        .gte("fecha_salida", hoy)
+        .order("fecha_entrada")
+        .execute()
+    )
+    return {"rangos_ocupados": res.data or []}
 
 @app.get("/api/alojamientos/{alojamiento_id}")
 def detalle_alojamiento(alojamiento_id: str):
@@ -144,7 +184,6 @@ def crear_reservacion(datos: CrearReservaRequest, usuario = Depends(obtener_usua
     if noches <= 0:
         raise HTTPException(status_code=400, detail="La fecha de salida debe ser posterior a la llegada.")
 
-    # Obtener precio real del alojamiento desde la DB
     aloj = supabase.table("alojamientos").select("*").eq("id", datos.alojamiento_id).single().execute()
     if not aloj.data:
         raise HTTPException(status_code=404, detail="Alojamiento no encontrado")
@@ -152,7 +191,6 @@ def crear_reservacion(datos: CrearReservaRequest, usuario = Depends(obtener_usua
     tarifa_servicio = 350.00
     total_pagar = (float(aloj.data["precio_noche"]) * noches) + tarifa_servicio
 
-    # Obtener tiempo de expiración desde configuración (default 15 min)
     config = supabase.table("configuracion_plataforma").select("*").eq("id", 1).single().execute()
     minutos = config.data["tiempo_pago_minutos"] if config.data else 15
     expira_en = (datetime.now(timezone.utc) + timedelta(minutes=minutos)).isoformat()
@@ -171,12 +209,36 @@ def crear_reservacion(datos: CrearReservaRequest, usuario = Depends(obtener_usua
 
     try:
         res = supabase.table("reservaciones").insert(nueva_reserva).execute()
-        return res.data[0]
+        creada = res.data[0]
     except Exception as e:
         msg = str(e)
         if "no está disponible" in msg:
             raise HTTPException(status_code=409, detail="El alojamiento ya está apartado o reservado en esas fechas.")
         raise HTTPException(status_code=400, detail=msg)
+
+    titulo_aloj = aloj.data.get("titulo", "tu alojamiento")
+    anfitrion_id = aloj.data.get("anfitrion_id")
+    fechas = f"{datos.fecha_entrada} al {datos.fecha_salida}"
+
+    # Notificar al huésped
+    crear_notificacion(
+        usuario["id"],
+        "Reservación apartada · Sube tu comprobante",
+        f"Apartaste {titulo_aloj} ({fechas}) por ${total_pagar:,.2f} MXN. Tienes {minutos} min para subir tu comprobante SPEI.",
+        creada["id"]
+    )
+
+    # Notificar al anfitrión
+    if anfitrion_id and anfitrion_id != usuario["id"]:
+        crear_notificacion(
+            anfitrion_id,
+            "Nueva solicitud de reservación",
+            f"{usuario['nombre_completo']} apartó {titulo_aloj} ({fechas}) por ${total_pagar:,.2f} MXN. En espera de comprobante SPEI.",
+            creada["id"]
+        )
+
+    return creada
+
 
 @app.get("/api/reservaciones/{reserva_id}")
 def detalle_reservacion(reserva_id: str, usuario = Depends(obtener_usuario_actual)):
@@ -211,28 +273,44 @@ async def subir_comprobante(
 ):
     supabase.rpc("liberar_reservas_expiradas").execute()
 
-    res = supabase.table("reservaciones").select("*").eq("id", reserva_id).single().execute()
-    if not res.data:
+    consulta = (
+        supabase.table("reservaciones")
+        .select("*, alojamientos(titulo, anfitrion_id)")
+        .eq("id", reserva_id)
+        .execute()
+    )
+    if not consulta.data:
         raise HTTPException(status_code=404, detail="Reservación no encontrada")
-    
-    reserva = res.data
+
+    reserva = consulta.data[0]
     if reserva["huesped_id"] != usuario["id"]:
         raise HTTPException(status_code=403, detail="No autorizado")
     if reserva["estado"] != "pendiente_pago":
         raise HTTPException(status_code=400, detail=f"No se puede subir comprobante. Estado actual: {reserva['estado']}")
 
-    # Subir archivo al bucket privado 'comprobantes'
-    ext = archivo.filename.split(".")[-1] if "." in archivo.filename else "jpg"
-    ruta_storage = f"{usuario['id']}/{reserva_id}_{uuid.uuid4().hex[:6]}.{ext}"
     contenido = await archivo.read()
+    if not contenido:
+        raise HTTPException(status_code=400, detail="El archivo está vacío.")
+    if len(contenido) > int(4.5 * 1024 * 1024):
+        raise HTTPException(status_code=413, detail="El archivo supera 4.5 MB. Sube una imagen o PDF más ligero.")
 
-    supabase.storage.from_("comprobantes").upload(
-        path=ruta_storage,
-        file=contenido,
-        file_options={"content-type": archivo.content_type}
-    )
+    nombre_archivo = archivo.filename or "comprobante.jpg"
+    ext = nombre_archivo.rsplit(".", 1)[-1].lower() if "." in nombre_archivo else "jpg"
+    ruta_storage = f"{usuario['id']}/{reserva_id}_{uuid.uuid4().hex[:6]}.{ext}"
+    content_type = archivo.content_type or "application/octet-stream"
 
-    # Actualizar reserva a 'en_revision' y dar 24 horas al admin
+    try:
+        supabase.storage.from_("comprobantes").upload(
+            path=ruta_storage,
+            file=contenido,
+            file_options={"content-type": content_type, "upsert": "true"}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo guardar el archivo en Supabase Storage (bucket 'comprobantes'): {str(e)}"
+        )
+
     config = supabase.table("configuracion_plataforma").select("*").eq("id", 1).single().execute()
     horas = config.data["tiempo_revision_horas"] if config.data else 24
     revision_expira = (datetime.now(timezone.utc) + timedelta(hours=horas)).isoformat()
@@ -243,20 +321,56 @@ async def subir_comprobante(
         "revision_expira_en": revision_expira
     }).eq("id", reserva_id).execute()
 
-    # Notificar a todos los administradores
-    admins = supabase.table("perfiles").select("id").eq("rol", "admin").execute()
-    for admin in admins.data:
-        supabase.table("notificaciones").insert({
-            "usuario_id": admin["id"],
-            "titulo": "Nuevo comprobante SPEI recibido",
-            "mensaje": f"{usuario['nombre_completo']} subió un comprobante por ${reserva['total_pagar']} MXN. Tienes {horas}h para validar.",
-            "reservacion_id": reserva_id
-        }).execute()
+    aloj = reserva.get("alojamientos") or {}
+    titulo_aloj = aloj.get("titulo", "el alojamiento")
+    anfitrion_id = aloj.get("anfitrion_id")
+    monto = float(reserva["total_pagar"])
+
+    # Notificar a administradores
+    admins = supabase.table("perfiles").select("id").eq("rol", "admin").execute().data or []
+    for admin in admins:
+        crear_notificacion(
+            admin["id"],
+            "Nuevo comprobante SPEI recibido",
+            f"{usuario['nombre_completo']} subió un comprobante para {titulo_aloj} por ${monto:,.2f} MXN. Tienes {horas}h para validar.",
+            reserva_id
+        )
+
+    # Notificar al huésped
+    crear_notificacion(
+        usuario["id"],
+        "Comprobante SPEI en revisión",
+        f"Recibimos tu comprobante para {titulo_aloj}. El administrador tiene hasta {horas} horas para validar tu pago.",
+        reserva_id
+    )
+
+    # Notificar al anfitrión
+    if anfitrion_id and anfitrion_id != usuario["id"]:
+        crear_notificacion(
+            anfitrion_id,
+            "Comprobante de pago recibido",
+            f"{usuario['nombre_completo']} subió su comprobante SPEI para {titulo_aloj} (${monto:,.2f} MXN). Pendiente de validación del administrador.",
+            reserva_id
+        )
 
     return {"mensaje": "Comprobante enviado a revisión", "reserva": actualizada.data[0]}
 
 @app.put("/api/reservaciones/{reserva_id}/cancelar")
 def cancelar_mi_reserva(reserva_id: str, usuario = Depends(obtener_usuario_actual)):
+    consulta = (
+        supabase.table("reservaciones")
+        .select("*, alojamientos(titulo, anfitrion_id)")
+        .eq("id", reserva_id)
+        .eq("huesped_id", usuario["id"])
+        .execute()
+    )
+    if not consulta.data:
+        raise HTTPException(status_code=404, detail="Reservación no encontrada")
+
+    reserva = consulta.data[0]
+    if reserva["estado"] in ("cancelada", "expirada", "completada"):
+        raise HTTPException(status_code=400, detail=f"No se puede cancelar una reservación en estado '{reserva['estado']}'.")
+
     res = (
         supabase.table("reservaciones")
         .update({"estado": "cancelada"})
@@ -264,8 +378,40 @@ def cancelar_mi_reserva(reserva_id: str, usuario = Depends(obtener_usuario_actua
         .eq("huesped_id", usuario["id"])
         .execute()
     )
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Reservación no encontrada")
+
+    aloj = reserva.get("alojamientos") or {}
+    titulo_aloj = aloj.get("titulo", "el alojamiento")
+    anfitrion_id = aloj.get("anfitrion_id")
+    fechas = f"{reserva['fecha_entrada']} al {reserva['fecha_salida']}"
+
+    # Notificar al huésped
+    crear_notificacion(
+        usuario["id"],
+        "Reservación cancelada",
+        f"Cancelaste tu reservación en {titulo_aloj} ({fechas}).",
+        reserva_id
+    )
+
+    # Notificar al anfitrión
+    if anfitrion_id and anfitrion_id != usuario["id"]:
+        crear_notificacion(
+            anfitrion_id,
+            "Reservación cancelada por el huésped",
+            f"{usuario['nombre_completo']} canceló su reservación en {titulo_aloj} ({fechas}). Las fechas volvieron a estar disponibles.",
+            reserva_id
+        )
+
+    # Notificar a administradores
+    admins = supabase.table("perfiles").select("id").eq("rol", "admin").execute().data or []
+    for admin in admins:
+        if admin["id"] not in (usuario["id"], anfitrion_id):
+            crear_notificacion(
+                admin["id"],
+                "Reservación cancelada",
+                f"{usuario['nombre_completo']} canceló su reservación en {titulo_aloj} ({fechas}).",
+                reserva_id
+            )
+
     return {"mensaje": "Reservación cancelada", "reserva": res.data[0]}
 
 from fastapi import FastAPI, HTTPException, Depends, Header, UploadFile, File, Form
@@ -446,29 +592,63 @@ def obtener_url_comprobante(reserva_id: str, usuario = Depends(requerir_admin)):
 def validar_reservacion(reserva_id: str, datos: ValidarReservaRequest, usuario = Depends(requerir_admin)):
     supabase.rpc("liberar_reservas_expiradas").execute()
 
-    res = supabase.table("reservaciones").select("*").eq("id", reserva_id).single().execute()
-    if not res.data:
+    consulta = (
+        supabase.table("reservaciones")
+        .select("*, alojamientos(titulo, anfitrion_id), perfiles(nombre_completo)")
+        .eq("id", reserva_id)
+        .execute()
+    )
+    if not consulta.data:
         raise HTTPException(status_code=404, detail="Reservación no encontrada")
 
+    reserva = consulta.data[0]
     nuevo_estado = "confirmada" if datos.accion == "aprobar" else "cancelada"
     actualizada = supabase.table("reservaciones").update({
         "estado": nuevo_estado,
         "notas_admin": datos.notas_admin
     }).eq("id", reserva_id).execute()
 
+    aloj = reserva.get("alojamientos") or {}
+    perfil_huesped = reserva.get("perfiles") or {}
+    titulo_aloj = aloj.get("titulo", "el alojamiento")
+    anfitrion_id = aloj.get("anfitrion_id")
+    nombre_huesped = perfil_huesped.get("nombre_completo", "El huésped")
+    fechas = f"{reserva['fecha_entrada']} al {reserva['fecha_salida']}"
+    monto = float(reserva["total_pagar"])
+
     # Notificar al huésped
-    titulo_notif = "¡Reservación confirmada!" if nuevo_estado == "confirmada" else "Comprobante rechazado"
-    msg_notif = (
-        "Tu pago SPEI fue validado por el administrador. ¡Te esperamos!"
-        if nuevo_estado == "confirmada"
-        else f"Tu comprobante no pudo ser validado y las fechas fueron liberadas. {datos.notas_admin or ''}"
-    )
-    supabase.table("notificaciones").insert({
-        "usuario_id": res.data["huesped_id"],
-        "titulo": titulo_notif,
-        "mensaje": msg_notif,
-        "reservacion_id": reserva_id
-    }).execute()
+    if nuevo_estado == "confirmada":
+        crear_notificacion(
+            reserva["huesped_id"],
+            "¡Reservación confirmada!",
+            f"Tu pago SPEI para {titulo_aloj} ({fechas}) fue validado. ¡Te esperamos!",
+            reserva_id
+        )
+    else:
+        nota = f" Motivo: {datos.notas_admin}" if datos.notas_admin else ""
+        crear_notificacion(
+            reserva["huesped_id"],
+            "Comprobante rechazado",
+            f"Tu comprobante para {titulo_aloj} ({fechas}) no pudo ser validado y las fechas fueron liberadas.{nota}",
+            reserva_id
+        )
+
+    # Notificar al anfitrión
+    if anfitrion_id and anfitrion_id != reserva["huesped_id"]:
+        if nuevo_estado == "confirmada":
+            crear_notificacion(
+                anfitrion_id,
+                "¡Reservación confirmada en tu alojamiento!",
+                f"Se aprobó el pago de {nombre_huesped} para {titulo_aloj} ({fechas}) por ${monto:,.2f} MXN.",
+                reserva_id
+            )
+        else:
+            crear_notificacion(
+                anfitrion_id,
+                "Pago rechazado · Fechas liberadas",
+                f"El comprobante de {nombre_huesped} para {titulo_aloj} ({fechas}) fue rechazado y las fechas quedaron libres nuevamente.",
+                reserva_id
+            )
 
     return {"mensaje": f"Reservación marcada como {nuevo_estado}", "reserva": actualizada.data[0]}
 
@@ -557,6 +737,212 @@ def listar_resenas_admin(usuario = Depends(requerir_admin)):
         .execute()
     )
     return res.data
+
+# --- BLOQUE 5: NOTIFICACIONES (HUÉSPED, ANFITRIÓN Y ADMIN) ---
+def crear_notificacion(usuario_id: str | None, titulo: str, mensaje: str, reservacion_id: str | None = None):
+    if not usuario_id:
+        return
+    try:
+        payload = {
+            "usuario_id": usuario_id,
+            "titulo": titulo,
+            "mensaje": mensaje,
+            "leida": False
+        }
+        if reservacion_id:
+            payload["reservacion_id"] = reservacion_id
+        supabase.table("notificaciones").insert(payload).execute()
+    except Exception as e:
+        print(f"[Notificaciones] Error al insertar para {usuario_id}: {e}")
+
+@app.get("/api/notificaciones")
+def listar_notificaciones(usuario = Depends(obtener_usuario_actual)):
+    try:
+        res = (
+            supabase.table("notificaciones")
+            .select("*")
+            .eq("usuario_id", usuario["id"])
+            .order("creado_en", desc=True)
+            .limit(30)
+            .execute()
+        )
+        items = res.data or []
+    except Exception:
+        res = (
+            supabase.table("notificaciones")
+            .select("*")
+            .eq("usuario_id", usuario["id"])
+            .limit(30)
+            .execute()
+        )
+        items = res.data or []
+
+    sin_leer = sum(1 for n in items if not n.get("leida"))
+    return {"notificaciones": items, "sin_leer": sin_leer}
+
+@app.put("/api/notificaciones/leer-todas")
+def marcar_todas_leidas(usuario = Depends(obtener_usuario_actual)):
+    supabase.table("notificaciones").update({"leida": True}).eq("usuario_id", usuario["id"]).eq("leida", False).execute()
+    return {"mensaje": "Todas las notificaciones marcadas como leídas"}
+
+@app.put("/api/notificaciones/{notif_id}/leer")
+def marcar_notificacion_leida(notif_id: str, usuario = Depends(obtener_usuario_actual)):
+    res = (
+        supabase.table("notificaciones")
+        .update({"leida": True})
+        .eq("id", notif_id)
+        .eq("usuario_id", usuario["id"])
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Notificación no encontrada")
+    return res.data[0]
+
+@app.get("/api/admin/reportes")
+def obtener_reportes_admin(dias: int = 30, usuario = Depends(requerir_admin)):
+    supabase.rpc("liberar_reservas_expiradas").execute()
+
+    alojamientos = supabase.table("alojamientos").select("*").order("creado_en", desc=True).execute().data or []
+    reservas = (
+        supabase.table("reservaciones")
+        .select("*, alojamientos(titulo), perfiles(nombre_completo)")
+        .order("creado_en", desc=True)
+        .execute()
+        .data or []
+    )
+    resenas = supabase.table("resenas").select("alojamiento_id, calificacion").execute().data or []
+
+    ahora = datetime.now(timezone.utc)
+    fecha_corte = (ahora - timedelta(days=dias)) if dias > 0 else None
+
+    def parse_dt(valor: str | None):
+        if not valor:
+            return None
+        try:
+            dt = datetime.fromisoformat(valor.replace("Z", "+00:00"))
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        except Exception:
+            return None
+
+    reservas_periodo = []
+    for r in reservas:
+        dt = parse_dt(r.get("creado_en")) or parse_dt(r.get("fecha_entrada"))
+        if not fecha_corte or (dt and dt >= fecha_corte):
+            reservas_periodo.append(r)
+
+    confirmadas = [r for r in reservas_periodo if r.get("estado") in ("confirmada", "completada")]
+    ingresos_totales = sum(float(r.get("total_pagar") or 0) for r in confirmadas)
+    ticket_promedio = round(ingresos_totales / len(confirmadas), 2) if confirmadas else 0.0
+
+    # Noches reservadas y calificaciones por alojamiento
+    noches_por_aloj = {}
+    reservas_por_aloj = {}
+    for r in confirmadas:
+        aid = r.get("alojamiento_id")
+        try:
+            d1 = date.fromisoformat(str(r["fecha_entrada"])[:10])
+            d2 = date.fromisoformat(str(r["fecha_salida"])[:10])
+            noches = max(1, (d2 - d1).days)
+        except Exception:
+            noches = 1
+        noches_por_aloj[aid] = noches_por_aloj.get(aid, 0) + noches
+        reservas_por_aloj[aid] = reservas_por_aloj.get(aid, 0) + 1
+
+    dias_base = dias if dias > 0 else 90
+    aloj_activos = [a for a in alojamientos if a.get("activo", True)]
+    capacidad_noches = max(1, len(aloj_activos) * dias_base)
+    ocupacion_promedio = min(100, round((sum(noches_por_aloj.values()) / capacidad_noches) * 100))
+
+    # Ingresos de los ultimos 7 meses (incluyendo el mes actual)
+    nombres_mes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+    meses_clave = []
+    y, m = ahora.year, ahora.month
+    for _ in range(7):
+        meses_clave.append((y, m))
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    meses_clave.reverse()
+
+    totales_mes = {f"{yy}-{mm:02d}": 0.0 for yy, mm in meses_clave}
+    for r in reservas:
+        if r.get("estado") not in ("confirmada", "completada"):
+            continue
+        dt = parse_dt(r.get("creado_en")) or parse_dt(r.get("fecha_entrada"))
+        if not dt:
+            continue
+        clave = f"{dt.year}-{dt.month:02d}"
+        if clave in totales_mes:
+            totales_mes[clave] += float(r.get("total_pagar") or 0)
+
+    ingresos_por_mes = [
+        {
+            "clave": f"{yy}-{mm:02d}",
+            "etiqueta": nombres_mes[mm - 1],
+            "total": round(totales_mes[f"{yy}-{mm:02d}"], 2)
+        }
+        for yy, mm in meses_clave
+    ]
+
+    # Calificacion promedio por alojamiento
+    calif_mapa = {}
+    for rs in resenas:
+        aid = rs.get("alojamiento_id")
+        calif_mapa.setdefault(aid, []).append(float(rs.get("calificacion") or 0))
+
+    por_alojamiento = []
+    for a in alojamientos:
+        aid = a["id"]
+        noches = noches_por_aloj.get(aid, 0)
+        ocup = min(100, round((noches / dias_base) * 100))
+        lista_c = calif_mapa.get(aid, [])
+        prom_c = round(sum(lista_c) / len(lista_c), 2) if lista_c else None
+        por_alojamiento.append({
+            "id": aid,
+            "titulo": a.get("titulo", "Alojamiento"),
+            "activo": bool(a.get("activo", True)),
+            "reservas": reservas_por_aloj.get(aid, 0),
+            "ocupacion": ocup,
+            "calificacion": prom_c
+        })
+
+    # Movimientos recientes basados en reservaciones reales
+    movimientos = []
+    for r in reservas_periodo[:15]:
+        est = r.get("estado", "")
+        if est in ("confirmada", "completada"):
+            concepto = "Reserva confirmada"
+            tipo_mov = "Ingreso"
+        elif est in ("en_revision", "pendiente_pago"):
+            concepto = "Reserva en proceso SPEI"
+            tipo_mov = "Pendiente"
+        else:
+            concepto = "Reserva cancelada / expirada"
+            tipo_mov = "Cancelada"
+
+        movimientos.append({
+            "concepto": concepto,
+            "alojamiento": (r.get("alojamientos") or {}).get("titulo", "Alojamiento"),
+            "huesped": (r.get("perfiles") or {}).get("nombre_completo", "Huésped"),
+            "tipo": tipo_mov,
+            "fecha": str(r.get("creado_en") or r.get("fecha_entrada") or "")[:10],
+            "monto": float(r.get("total_pagar") or 0)
+        })
+
+    return {
+        "dias": dias,
+        "resumen": {
+            "ingresos_totales": round(ingresos_totales, 2),
+            "total_reservaciones": len(reservas_periodo),
+            "confirmadas": len(confirmadas),
+            "ocupacion_promedio": ocupacion_promedio,
+            "ticket_promedio": ticket_promedio
+        },
+        "ingresos_por_mes": ingresos_por_mes,
+        "por_alojamiento": por_alojamiento,
+        "movimientos": movimientos
+    }
 
 # Servir la carpeta frontend desde FastAPI (debe ir al final del archivo)
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")

@@ -1,6 +1,8 @@
 <!doctype html>
 <html lang="es">
 <head>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Entre Nubes · Alojamientos en Capulálpam de Méndez</title>
@@ -8,6 +10,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+#mapaCapulalpam{width:100%;height:100%;z-index:1}
+.map-price-pin{
+  background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:999px;
+  padding:5px 10px;font:700 12.5px/1 Inter,sans-serif;white-space:nowrap;
+  box-shadow:0 3px 10px rgba(30,61,40,.22);transition:all .2s var(--ease);
+}
+.map-price-pin:hover{background:var(--pine);color:#fff;border-color:var(--pine);transform:scale(1.06)}
 :root{
   --pine:#2d5a3d;--pine-d:#1e3d28;--moss:#4a7c59;--sage:#8aa88f;--mint:#e6efe8;
   --cream:#fafaf5;--sand:#e8e2d4;--ink:#1a2e20;--muted:#6b7a6f;--line:#e2e8de;--soft:#f2f5ee;
@@ -163,21 +172,81 @@ img{display:block;max-width:100%}
     </div>
   </section>
 
-  <aside class="map" aria-label="Mapa de la zona">
-    <div class="mapbg">
-      <div class="road"></div>
-      <div class="road2"></div>
-      <div class="pin p1">$2,500</div>
-      <div class="pin p2">$1,850</div>
-      <div class="pin p3">$2,100</div>
-      <div class="mapnote">Mapa ilustrativo de Capulálpam de Méndez · la ubicación exacta se comparte al confirmar la reserva.</div>
-    </div>
+  <aside class="map" aria-label="Mapa real de Capulálpam de Méndez">
+    <div id="mapaCapulalpam"></div>
+    <div class="mapnote" style="z-index:400">Capulálpam de Méndez, Oaxaca · Haz clic en un precio para ver el alojamiento.</div>
   </aside>
 </main>
 
 <script>
 const API_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8000' : '';
 let tipoActual = '';
+let mapa = null;
+let capaMarcadores = null;
+
+// Coordenadas reales de Capulalpam de Mendez, Oaxaca
+const CENTRO_CAPULALPAM = [17.3056, -96.4450];
+
+function inicializarMapa() {
+  if (mapa || !document.getElementById('mapaCapulalpam') || typeof L === 'undefined') return;
+  mapa = L.map('mapaCapulalpam', { scrollWheelZoom: false }).setView(CENTRO_CAPULALPAM, 15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(mapa);
+  capaMarcadores = L.layerGroup().addTo(mapa);
+}
+
+function actualizarMarcadores(propiedades, queryStr) {
+  inicializarMapa();
+  if (!mapa || !capaMarcadores) return;
+  capaMarcadores.clearLayers();
+
+  const bounds = [];
+  propiedades.forEach((prop, idx) => {
+    let lat = parseFloat(prop.latitud);
+    let lng = parseFloat(prop.longitud);
+    // Si un alojamiento antiguo no tiene coordenadas, lo ubica cerca del centro de Capulalpam
+    if (isNaN(lat) || isNaN(lng)) {
+      const ang = idx * 1.4;
+      const radio = 0.0012 + (idx % 3) * 0.0008;
+      lat = CENTRO_CAPULALPAM[0] + Math.sin(ang) * radio;
+      lng = CENTRO_CAPULALPAM[1] + Math.cos(ang) * radio;
+    }
+
+    const precioTxt = `$${Number(prop.precio_noche).toLocaleString('es-MX')}`;
+    const icono = L.divIcon({
+      className: '',
+      html: `<div class="map-price-pin">${precioTxt}</div>`,
+      iconSize: [74, 28],
+      iconAnchor: [37, 14]
+    });
+
+    const img = (prop.imagenes && prop.imagenes.length)
+      ? prop.imagenes[0]
+      : 'https://images.unsplash.com/photo-1542718610-a1d656d1884c?w=400';
+    const link = `propiedad.html?id=${prop.id}${queryStr ? '&' + queryStr : ''}`;
+
+    const marker = L.marker([lat, lng], { icon: icono }).addTo(capaMarcadores);
+    marker.bindPopup(`
+      <div style="width:200px;font-family:Inter,sans-serif">
+        <img src="${img}" alt="${prop.titulo}" style="width:100%;height:105px;object-fit:cover;border-radius:8px;margin-bottom:8px">
+        <strong style="display:block;font-size:13.5px;color:#1a2e20">${prop.titulo}</strong>
+        <div style="font-size:12px;color:#6b7a6f;margin:3px 0">${prop.tipo || 'Alojamiento'} · ${precioTxt} MXN/noche</div>
+        <a href="${link}" style="display:inline-block;margin-top:6px;padding:6px 10px;border-radius:8px;background:#2d5a3d;color:#fff;font-size:12px;font-weight:600">Ver alojamiento</a>
+      </div>
+    `);
+    bounds.push([lat, lng]);
+  });
+
+  if (bounds.length > 1) {
+    mapa.fitBounds(bounds, { padding: [36, 36], maxZoom: 16 });
+  } else if (bounds.length === 1) {
+    mapa.setView(bounds[0], 16);
+  } else {
+    mapa.setView(CENTRO_CAPULALPAM, 15);
+  }
+}
 
 document.addEventListener('click', function(e){
   const btn = e.target.closest('.heart');
@@ -188,39 +257,73 @@ document.addEventListener('click', function(e){
   }
 });
 
+// Limitar fechas minimas al dia de hoy
+const inputIn = document.getElementById('in');
+const inputOut = document.getElementById('out');
+const hoyStr = new Date().toISOString().split('T')[0];
+inputIn.min = hoyStr;
+inputOut.min = hoyStr;
+
+inputIn.addEventListener('change', () => {
+  if (inputIn.value) {
+    const siguiente = new Date(inputIn.value + 'T00:00:00');
+    siguiente.setDate(siguiente.getDate() + 1);
+    const minOut = siguiente.toISOString().split('T')[0];
+    inputOut.min = minOut;
+    if (inputOut.value && inputOut.value <= inputIn.value) {
+      inputOut.value = minOut;
+    }
+  }
+});
+
 async function cargarAlojamientos() {
   const capacidad = document.getElementById('guests').value;
-  const entrada = document.getElementById('in').value;
-  const salida = document.getElementById('out').value;
+  const entrada = inputIn.value;
+  const salida = inputOut.value;
+
+  if ((entrada && !salida) || (!entrada && salida)) {
+    alert('Selecciona tanto la fecha de llegada como la de salida para filtrar disponibilidad.');
+    return;
+  }
+  if (entrada && salida && salida <= entrada) {
+    alert('La fecha de salida debe ser posterior a la fecha de llegada.');
+    return;
+  }
 
   const params = new URLSearchParams();
   if (capacidad) params.append('capacidad', capacidad);
   if (tipoActual) params.append('tipo', tipoActual);
+  if (entrada && salida) {
+    params.append('fecha_entrada', entrada);
+    params.append('fecha_salida', salida);
+  }
 
   const contenedor = document.getElementById('lista-cabanas');
-  contenedor.innerHTML = '<p style="grid-column:1/-1;color:var(--muted)">Buscando alojamientos...</p>';
+  contenedor.innerHTML = '<p style="grid-column:1/-1;color:var(--muted)">Buscando alojamientos disponibles...</p>';
 
   try {
     const response = await fetch(`${API_URL}/api/alojamientos?${params.toString()}`);
     if (!response.ok) throw new Error('Error en la red');
     const propiedades = await response.json();
 
-    contenedor.innerHTML = '';
-    if (!propiedades.length) {
-      contenedor.innerHTML = '<p style="grid-column:1/-1;color:var(--muted)">No encontramos alojamientos con esos filtros.</p>';
-      return;
-    }
-
     const queryFechas = new URLSearchParams();
     if (entrada) queryFechas.append('entrada', entrada);
     if (salida) queryFechas.append('salida', salida);
     if (capacidad) queryFechas.append('huespedes', capacidad);
 
+    actualizarMarcadores(propiedades, queryFechas.toString());
+
+    contenedor.innerHTML = '';
+    if (!propiedades.length) {
+      contenedor.innerHTML = '<p style="grid-column:1/-1;color:var(--muted)">No hay alojamientos disponibles con esos filtros o para esas fechas.</p>';
+      return;
+    }
+
     propiedades.forEach(prop => {
       const urlImagen = (prop.imagenes && prop.imagenes.length > 0)
         ? prop.imagenes[0]
         : 'https://images.unsplash.com/photo-1542718610-a1d656d1884c?w=900';
-      
+
       const linkDetalle = `propiedad.html?id=${prop.id}${queryFechas.toString() ? '&' + queryFechas.toString() : ''}`;
 
       contenedor.innerHTML += `
@@ -262,7 +365,6 @@ document.querySelectorAll('.chip').forEach(chip => {
   });
 });
 
-// Control de sesión dinámico
 const gestionarSesion = () => {
   const authButton = document.getElementById('authButton');
   const authButtonText = document.getElementById('authButtonText');
@@ -281,7 +383,9 @@ const gestionarSesion = () => {
 };
 
 gestionarSesion();
+inicializarMapa();
 cargarAlojamientos();
 </script>
+<script src="notificaciones.js"></script>
 </body>
 </html>

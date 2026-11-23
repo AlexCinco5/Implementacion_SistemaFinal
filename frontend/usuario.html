@@ -192,6 +192,9 @@ button{cursor:pointer;background:none;border:0;padding:0}
     <button class="tab active" data-target="reservas">Mis reservaciones</button>
     <button class="tab" data-target="historial">Historial de viajes</button>
     <button class="tab" data-target="cuenta">Datos de la cuenta</button>
+    <button class="tab" data-target="notificaciones">
+      Notificaciones <span id="tabNotifCount" style="display:none;margin-left:6px;background:var(--pine);color:#fff;padding:2px 7px;border-radius:999px;font-size:11px">0</span>
+    </button>
   </div>
 
   <!-- PESTAÑA: RESERVACIONES -->
@@ -235,6 +238,19 @@ button{cursor:pointer;background:none;border:0;padding:0}
         </div>
         <button type="submit" class="btn btn-primary" style="margin-top:10px">Guardar cambios</button>
       </form>
+    </div>
+  </div>
+
+  <!-- PESTAÑA: NOTIFICACIONES -->
+  <div class="tab-content" id="notificaciones">
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h2 style="margin:0">Mis notificaciones</h2>
+        <button type="button" class="btn btn-outline" id="btnLeerTodasUsuario">Marcar todas como leídas</button>
+      </div>
+      <div id="listaNotificacionesUsuario">
+        <p style="color:var(--muted)">Cargando notificaciones...</p>
+      </div>
     </div>
   </div>
 </div>
@@ -407,6 +423,51 @@ document.getElementById('formPerfil').addEventListener('submit', async (e) => {
     console.error(error);
     alert('Error de conexión con el servidor.');
   }
+});
+</script>
+
+<script src="notificaciones.js"></script>
+<script>
+window.addEventListener('en:notificaciones', (e) => {
+  const { notificaciones = [], sin_leer = 0 } = e.detail || {};
+  const badge = document.getElementById('tabNotifCount');
+  if (badge) {
+    badge.textContent = sin_leer;
+    badge.style.display = sin_leer > 0 ? 'inline-block' : 'none';
+  }
+  const cont = document.getElementById('listaNotificacionesUsuario');
+  if (!cont) return;
+  if (!notificaciones.length) {
+    cont.innerHTML = '<p style="color:var(--muted)">Aún no tienes notificaciones.</p>';
+    return;
+  }
+  cont.innerHTML = notificaciones.map(n => `
+    <div style="padding:14px;border-radius:12px;margin-bottom:10px;border:1px solid var(--line);background:${n.leida ? '#fff' : 'var(--mint)'};display:flex;justify-content:space-between;gap:14px;align-items:center">
+      <div>
+        <strong style="display:block;font-size:14.5px;color:var(--ink)">${n.titulo}</strong>
+        <p style="margin:4px 0 0;color:var(--muted);font-size:13.5px">${n.mensaje}</p>
+      </div>
+      ${n.reservacion_id ? `<button class="btn btn-outline" onclick="abrirNotifUsuario('${n.id}','${n.reservacion_id}')">Ver reserva</button>` : ''}
+    </div>
+  `).join('');
+});
+
+async function abrirNotifUsuario(notifId, reservaId) {
+  const jwt = localStorage.getItem('jwt');
+  await fetch(`${API_URL}/api/notificaciones/${notifId}/leer`, {
+    method: 'PUT',
+    headers: { 'Authorization': `Bearer ${jwt}` }
+  });
+  verRecibo(reservaId);
+}
+
+document.getElementById('btnLeerTodasUsuario')?.addEventListener('click', async () => {
+  const jwt = localStorage.getItem('jwt');
+  await fetch(`${API_URL}/api/notificaciones/leer-todas`, {
+    method: 'PUT',
+    headers: { 'Authorization': `Bearer ${jwt}` }
+  });
+  if (window.cargarNotificacionesEntreNubes) window.cargarNotificacionesEntreNubes();
 });
 </script>
 </body>
