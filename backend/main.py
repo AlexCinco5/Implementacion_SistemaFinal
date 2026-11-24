@@ -1201,3 +1201,68 @@ def quitar_favorito(alojamiento_id: str, usuario = Depends(obtener_usuario_actua
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
 if os.path.exists(frontend_dir):
     app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+
+# --- BLOQUE 8: GESTIÓN DE ADMINISTRADORES ---
+class CrearAdminRequest(BaseModel):
+    nombre_completo: str
+    correo: EmailStr
+    password: str
+    telefono: str | None = ""
+
+@app.get("/api/admin/administradores")
+def listar_administradores(usuario = Depends(requerir_admin)):
+    res = (
+        supabase.table("perfiles")
+        .select("*")
+        .eq("rol", "admin")
+        .order("creado_en", desc=True)
+        .execute()
+    )
+    return res.data or []
+
+@app.post("/api/admin/administradores")
+def crear_administrador(datos: CrearAdminRequest, usuario = Depends(requerir_admin)):
+    correo = datos.correo.strip().lower()
+    # Si el correo ya existe en perfiles, lo promovemos a admin
+    existente = supabase.table("perfiles").select("*").eq("correo", correo).execute().data
+    if existente:
+        act = supabase.table("perfiles").update({"rol": "admin", "activo": True}).eq("id", existente[0]["id"]).execute()
+        return act.data[0]
+
+    if len(datos.password) < 8:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres.")
+
+    try:
+        auth_res = supabase.auth.admin.create_user({
+            "email": correo,
+            "password": datos.password,
+            "email_confirm": True
+        })
+        perfil = {
+            "id": auth_res.user.id,
+            "nombre_completo": datos.nombre_completo.strip(),
+            "correo": correo,
+            "telefono": (datos.telefono or "").strip(),
+            "rol": "admin",
+            "activo": True
+        }
+        supabase.table("perfiles").insert(perfil).execute()
+        return perfil
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete("/api/admin/administradores/{admin_id}")
+def quitar_administrador(admin_id: str, usuario = Depends(requerir_admin)):
+    if admin_id == usuario["id"]:
+        raise HTTPException(status_code=400, detail="No puedes quitarte el rol de administrador a ti mismo.")
+
+    res = (
+        supabase.table("perfiles")
+        .update({"rol": "huesped"})
+        .eq("id", admin_id)
+        .eq("rol", "admin")
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Administrador no encontrado.")
+    return {"mensaje": "Permisos de administrador revocados correctamente."}

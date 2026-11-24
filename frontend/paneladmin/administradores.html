@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Administradores · Entre Nubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s}
+  .modal-overlay.active{opacity:1;pointer-events:auto}
+  .modal-content{background:#fff;border-radius:12px;padding:24px;width:90%;max-width:420px}
+  .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .close-btn{background:none;border:0;font-size:22px;cursor:pointer}
+  .form-group{margin-bottom:14px;display:flex;flex-direction:column;gap:5px}
+  .form-group label{font-size:13px;font-weight:600}
+  .form-group input{padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+  .btn-danger-sm{padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;background:#fbeaea;color:#a94a4a;border:1px solid #f5c2c2;cursor:pointer}
+  .btn-danger-sm:hover{background:#f6d8d8}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar"></aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Administradores</h1>
+        <div class="date" id="subAdmins">Cargando administradores...</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="top-actions">
+        <button class="btn primary" id="openModalBtn" type="button">+ Añadir administrador</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="label">Total administradores</div>
+        <div class="value" id="totalAdminsCount">0</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>Lista de administradores</h3></div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Administrador</th>
+            <th>Contacto</th>
+            <th>Estado</th>
+            <th style="text-align:right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="adminsTableBody">
+          <tr><td colspan="4" style="text-align:center;color:var(--muted)">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="adminModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Añadir Administrador</h2>
+      <button type="button" class="close-btn" id="closeModalBtn">&times;</button>
+    </div>
+    <form id="addAdminForm">
+      <div class="form-group">
+        <label for="fullName">Nombre completo</label>
+        <input type="text" id="fullName" required placeholder="Ej. Carlos Méndez">
+      </div>
+      <div class="form-group">
+        <label for="email">Correo electrónico</label>
+        <input type="email" id="email" required placeholder="admin@entrenubes.mx">
+      </div>
+      <div class="form-group">
+        <label for="telefono">Teléfono</label>
+        <input type="tel" id="telefono" placeholder="+52 951 123 4567">
+      </div>
+      <div class="form-group">
+        <label for="password">Contraseña inicial (mín. 8 caracteres)</label>
+        <input type="password" id="password" minlength="8" required placeholder="••••••••">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="cancelModalBtn">Cancelar</button>
+        <button type="submit" class="btn primary" id="btnGuardarAdmin">Guardar administrador</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const API_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8000' : '';
+const jwt = localStorage.getItem('jwt');
+const rol = localStorage.getItem('user_rol');
+const miUserId = localStorage.getItem('user_id');
+
+if (!jwt || rol !== 'admin') window.location.href = '../login.html';
+
+async function cargarAdministradores() {
+  try {
+    const res = await fetch(`${API_URL}/api/admin/administradores`, {
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    const lista = await res.json();
+
+    document.getElementById('totalAdminsCount').textContent = lista.length;
+    document.getElementById('subAdmins').textContent = `${lista.length} administradores con acceso al panel`;
+
+    const tbody = document.getElementById('adminsTableBody');
+    if (!lista.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted)">No hay administradores registrados.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = lista.map(a => {
+      const ini = (a.nombre_completo || 'AD').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+      const esYo = a.id === miUserId;
+      return `
+        <tr>
+          <td>
+            <div class="guest">
+              <div class="avatar-tiny a4">${ini}</div>
+              <div><b>${a.nombre_completo}${esYo ? ' (Tú)' : ''}</b><small>${a.telefono || 'Sin teléfono'}</small></div>
+            </div>
+          </td>
+          <td>${a.correo}</td>
+          <td><span class="badge confirmed">Activo</span></td>
+          <td style="text-align:right">
+            ${esYo
+              ? '<span style="font-size:12px;color:var(--muted)">Sesión actual</span>'
+              : `<button class="btn-danger-sm" type="button" onclick="quitarAdmin('${a.id}', '${a.nombre_completo.replace(/'/g, "\\'")}')">Quitar admin</button>`
+            }
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function quitarAdmin(id, nombre) {
+  if (!confirm(`¿Quitar permisos de administrador a ${nombre}? Su cuenta pasará a rol de huésped.`)) return;
+  try {
+    const res = await fetch(`${API_URL}/api/admin/administradores/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    const data = await res.json();
+    if (res.ok) {
+      alert('Permisos de administrador revocados.');
+      cargarAdministradores();
+    } else {
+      alert(data.detail || 'No se pudo quitar al administrador.');
+    }
+  } catch (e) {
+    alert('Error de conexión.');
+  }
+}
+
+cargarAdministradores();
+
+const modal = document.getElementById('adminModal');
+const form = document.getElementById('addAdminForm');
+document.getElementById('openModalBtn').addEventListener('click', () => modal.classList.add('active'));
+const cerrar = () => { modal.classList.remove('active'); form.reset(); };
+document.getElementById('closeModalBtn').addEventListener('click', cerrar);
+document.getElementById('cancelModalBtn').addEventListener('click', cerrar);
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('btnGuardarAdmin');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  try {
+    const res = await fetch(`${API_URL}/api/admin/administradores`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+      body: JSON.stringify({
+        nombre_completo: document.getElementById('fullName').value.trim(),
+        correo: document.getElementById('email').value.trim(),
+        telefono: document.getElementById('telefono').value.trim(),
+        password: document.getElementById('password').value
+      })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      alert('Administrador agregado con éxito.');
+      cerrar();
+      cargarAdministradores();
+    } else {
+      alert(data.detail || 'No se pudo crear el administrador.');
+    }
+  } catch (err) {
+    alert('Error de conexión.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar administrador';
+  }
+});
+</script>
+<script src="../notificaciones.js"></script>
+<script src="sidebar.js"></script>
+</body>
+</html>
