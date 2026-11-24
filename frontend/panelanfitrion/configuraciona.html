@@ -18,8 +18,6 @@
   .form-field.full{grid-column:1/-1}
   .form-field label{font-size:12px;font-weight:600;color:var(--ink)}
   .form-field input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--soft);font-size:13.5px}
-  .form-field input[readonly]{opacity:.7;cursor:not-allowed}
-  .form-field small{font-size:12px;color:var(--muted)}
   .form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
   @media (max-width:640px){.form-grid{grid-template-columns:1fr}}
 </style>
@@ -33,34 +31,33 @@
   <main class="main">
     <div class="topbar">
       <div>
-        <h1>Configuración</h1>
-        <div class="date">Administra los datos de tu perfil de anfitrión</div>
+        <h1>Configuración de Pagos SPEI</h1>
+        <div class="date">Estos datos se muestran al huésped cuando reserva uno de tus alojamientos</div>
       </div>
     </div>
 
-    <form id="formPerfil">
+    <form id="formSpei">
       <div class="config-section">
-        <h3>Mi perfil</h3>
-        <p class="desc">Estos datos se usan para identificarte ante los huéspedes y el administrador.</p>
+        <h3>Mi cuenta bancaria para transferencias SPEI</h3>
+        <p class="desc">Los huéspedes que reserven tus propiedades verán estos datos para hacerte la transferencia. Si no los capturas, verán la cuenta general de la plataforma.</p>
         <div class="form-grid">
           <div class="form-field">
-            <label for="nombre">Nombre completo</label>
-            <input id="nombre" type="text" required maxlength="100" placeholder="Tu nombre">
+            <label for="banco">Banco</label>
+            <input id="banco" type="text" required maxlength="60" placeholder="Ej. BBVA / STP">
           </div>
           <div class="form-field">
-            <label for="telefono">Teléfono</label>
-            <input id="telefono" type="tel" maxlength="20" placeholder="Ej. 951 123 4567">
+            <label for="titular">Titular de la cuenta</label>
+            <input id="titular" type="text" required maxlength="100" placeholder="Nombre completo del titular">
           </div>
           <div class="form-field full">
-            <label for="correo">Correo electrónico</label>
-            <input id="correo" type="email" readonly>
-            <small>Tu correo es tu usuario de acceso y no se puede cambiar desde aquí. Si necesitas cambiarlo, contacta al administrador.</small>
+            <label for="clabe">CLABE Interbancaria (18 dígitos)</label>
+            <input id="clabe" type="text" required maxlength="18" inputmode="numeric" pattern="[0-9]{18}" placeholder="012345678901234567">
           </div>
         </div>
       </div>
 
       <div class="form-actions">
-        <button class="btn primary" type="submit" id="btnGuardar">Guardar cambios</button>
+        <button class="btn primary" type="submit" id="btnGuardar">Guardar mis datos de pago</button>
       </div>
     </form>
 
@@ -85,60 +82,48 @@ const authHeaders = { 'Authorization': `Bearer ${jwt}` };
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    const res = await fetch(`${API_URL}/api/usuarios/me`, { headers: authHeaders });
+    const res = await fetch(`${API_URL}/api/anfitrion/configuracion`, { headers: authHeaders });
     if (res.status === 401 || res.status === 403) {
       localStorage.removeItem('jwt');
       window.location.href = '../login.html';
       return;
     }
-    const perfil = await res.json();
-    document.getElementById('nombre').value = perfil.nombre_completo || '';
-    document.getElementById('telefono').value = perfil.telefono || '';
-    document.getElementById('correo').value = perfil.correo || '';
+    const cfg = await res.json();
+    document.getElementById('banco').value = cfg.banco || '';
+    document.getElementById('titular').value = cfg.titular_cuenta || '';
+    document.getElementById('clabe').value = cfg.clabe_spei || '';
   } catch (e) {
     console.error(e);
-    alert('No se pudo cargar tu perfil.');
+    alert('No se pudieron cargar tus datos de pago.');
   }
 });
 
-document.getElementById('formPerfil').addEventListener('submit', async (e) => {
+document.getElementById('formSpei').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('btnGuardar');
-  const nombre = document.getElementById('nombre').value.trim();
-  const telefono = document.getElementById('telefono').value.trim();
-
-  if (!nombre) {
-    alert('El nombre no puede estar vacío.');
-    return;
-  }
-
   btn.disabled = true;
   btn.textContent = 'Guardando...';
   try {
-    const res = await fetch(`${API_URL}/api/usuarios/me`, {
+    const res = await fetch(`${API_URL}/api/anfitrion/configuracion`, {
       method: 'PUT',
       headers: { ...authHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre_completo: nombre, telefono })
+      body: JSON.stringify({
+        banco: document.getElementById('banco').value.trim(),
+        titular_cuenta: document.getElementById('titular').value.trim(),
+        clabe_spei: document.getElementById('clabe').value.trim()
+      })
     });
     if (res.ok) {
-      // Actualiza el nombre guardado y el que se ve en el sidebar
-      localStorage.setItem('reserva_nombre', nombre);
-      const elNombre = document.getElementById('hostName');
-      const elAvatar = document.getElementById('hostAvatar');
-      if (elNombre) elNombre.textContent = nombre;
-      if (elAvatar) {
-        elAvatar.textContent = nombre.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'AN';
-      }
-      alert('Perfil actualizado correctamente.');
+      alert('Tus datos de pago se guardaron correctamente.');
     } else {
       const err = await res.json().catch(() => ({}));
-      alert(err.detail || 'Error al guardar los cambios.');
+      alert(err.detail || 'Error al guardar tus datos de pago.');
     }
   } catch (err) {
     alert('Error de conexión con el servidor.');
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Guardar cambios';
+    btn.textContent = 'Guardar mis datos de pago';
   }
 });
 </script>

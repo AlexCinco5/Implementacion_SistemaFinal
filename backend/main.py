@@ -247,7 +247,7 @@ def detalle_reservacion(reserva_id: str, usuario = Depends(obtener_usuario_actua
 
     res = (
         supabase.table("reservaciones")
-        .select("*, alojamientos(titulo, direccion, tipo, precio_noche, imagenes), perfiles(nombre_completo, correo, telefono)")
+        .select("*, alojamientos(titulo, direccion, tipo, precio_noche, imagenes, anfitrion_id), perfiles(nombre_completo, correo, telefono)")
         .eq("id", reserva_id)
         .single()
         .execute()
@@ -259,10 +259,28 @@ def detalle_reservacion(reserva_id: str, usuario = Depends(obtener_usuario_actua
     if res.data["huesped_id"] != usuario["id"] and usuario["rol"] != "admin":
         raise HTTPException(status_code=403, detail="No tienes permiso para ver esta reservación")
 
+    # Cuenta de la plataforma (respaldo) y tiempos límite
     config = supabase.table("configuracion_plataforma").select("*").eq("id", 1).single().execute()
+    datos_spei = dict(config.data or {})
+
+    # Si el anfitrión ya configuró su cuenta, se muestra la suya
+    anfitrion_id = (res.data.get("alojamientos") or {}).get("anfitrion_id")
+    if anfitrion_id:
+        anf = (
+            supabase.table("perfiles")
+            .select("banco, titular_cuenta, clabe_spei")
+            .eq("id", anfitrion_id)
+            .execute()
+            .data
+        )
+        if anf and anf[0].get("clabe_spei"):
+            datos_spei["banco"] = anf[0].get("banco")
+            datos_spei["titular"] = anf[0].get("titular_cuenta")
+            datos_spei["clabe_spei"] = anf[0].get("clabe_spei")
+
     return {
         "reserva": res.data,
-        "datos_spei": config.data
+        "datos_spei": datos_spei
     }
 
 @app.post("/api/reservaciones/{reserva_id}/comprobante")
@@ -668,6 +686,7 @@ def actualizar_configuracion(datos: ConfigPlataformaRequest, usuario = Depends(r
         "tiempo_revision_horas": datos.tiempo_revision_horas
     }).eq("id", 1).execute()
     return res.data[0]
+
 # --- BLOQUE 4B: ANFITRIONES, HUÉSPEDES Y RESEÑAS (ADMIN) ---
 class CrearAnfitrionRequest(BaseModel):
     nombre_completo: str
@@ -949,7 +968,98 @@ def _calcular_reportes(dias: int, anfitrion_id: str | None = None):
         "por_alojamiento": por_alojamiento,
         "movimientos": movimientos
     }
+@app.get("/api/admin/reportes")
+def obtener_reportes_admin(dias: int = 30, usuario = Depends(requerir_admin)):
+    return _calcular_reportes(dias)
 
+@app.get("/api/anfitrion/reportes")
+def obtener_reportes_anfitrion(dias: int = 30, usuario = Depends(requerir_anfitrion)):
+    return _calcular_reportes(dias, usuario["id"] if usuario["rol"] == "anfitrion" else None)
+
+# --- BLOQUE 3B: ANFITRIÓN · COMPROBANTES, VALIDACIÓN Y RESEÑAS ---
+def _reserva_del_anfitrion(reserva_id: str, usuario: dict):
+    """Devuelve la reservación solo si pertenece a un alojamiento del anfitrión."""
+    res = (
+        supabase.table("reservaciones")
+        .select("*, alojamientos(titulo, anfitrion_id)")
+        .eq("id", reserva_id)
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Reservación no encontrada")
+    reserva = res.data[0]
+    aloj = reserva.get("alojamientos") or {}
+    if usuario["rol"] == "anfitrion" and aloj.get("anfitrion_id") != usuario["id"]:
+        # 404 y no 403, para no revelar que la reservación existe
+        raise HTTPException(status_code=404, detail="Reservación no encontrada")
+    return reserva
+
+@app.get("/api/anfitrion/reservaciones/{reserva_id}/comprobante")
+def comprobante_anfitrion(reserva_id: str, usuario = Depends(requerir_anfitrion)):
+    _reserva_del_anfitrion(reserva_id, usuario)
+    return obtener_url_comprobante(reserva_id, usuario)
+
+@app.put("/api/anfitrion/reservaciones/{reserva_id}/validar")
+def validar_reservacion_anfitrion(reserva_id: str, datos: ValidarReservaRequest, usuario = Depends(requerir_anfitrion)):
+    if datos.accion not in ("aprobar", "rechazar"):
+        raise HTTPException(status_code=400, detail="Acción inválida.")
+    supabase.rpc("liberar_reservas_expiradas").execute()
+    reserva = _reserva_del_anfitrion(reserva_id, usuario)
+    if reserva["estado"] != "en_revision":
+        raise HTTPException(status_code=400, detail=f"Solo se pueden validar reservaciones en revisión. Estado actual: {reserva['estado']}")
+    return validar_reservacion(reserva_id, datos, usuario)
+
+@app.get("/api/anfitrion/resenas")
+def resenas_anfitrion(usuario = Depends(requerir_anfitrion)):
+    # Solo reseñas de alojamientos del anfitrión (el admin ve todas)
+    aloj_q = supabase.table("alojamientos").select("id")
+    if usuario["rol"] == "anfitrion":
+        aloj_q = aloj_q.eq("anfitrion_id", usuario["id"])
+    aloj_ids = [a["id"] for a in aloj_q.execute().data or []]
+
+    if not aloj_ids:
+        return []
+
+    res = (
+        supabase.table("resenas")
+        .select("*, alojamientos(titulo), perfiles(nombre_completo)")
+        .in_("alojamiento_id", aloj_ids)
+        .order("creado_en", desc=True)
+        .execute()
+    )
+    return res.data or []
+
+
+# --- BLOQUE 3C: ANFITRIÓN · DATOS DE PAGO SPEI ---
+class ConfigAnfitrionRequest(BaseModel):
+    banco: str
+    titular_cuenta: str
+    clabe_spei: str
+
+@app.get("/api/anfitrion/configuracion")
+def obtener_config_anfitrion(usuario = Depends(requerir_anfitrion)):
+    res = (
+        supabase.table("perfiles")
+        .select("banco, titular_cuenta, clabe_spei")
+        .eq("id", usuario["id"])
+        .execute()
+    )
+    return res.data[0] if res.data else {}
+
+@app.put("/api/anfitrion/configuracion")
+def actualizar_config_anfitrion(datos: ConfigAnfitrionRequest, usuario = Depends(requerir_anfitrion)):
+    clabe = datos.clabe_spei.strip().replace(" ", "")
+    if not (clabe.isdigit() and len(clabe) == 18):
+        raise HTTPException(status_code=400, detail="La CLABE debe tener exactamente 18 dígitos.")
+    if not datos.banco.strip() or not datos.titular_cuenta.strip():
+        raise HTTPException(status_code=400, detail="Banco y titular son obligatorios.")
+
+    res = supabase.table("perfiles").update({
+        "banco": datos.banco.strip(),
+        "titular_cuenta": datos.titular_cuenta.strip(),
+        "clabe_spei": clabe
+    }).eq("id", usuario["id"]).execute()
+    return res.data[0]
 
 # --- BLOQUE 6: GESTIÓN DE ALOJAMIENTOS (EDITAR, PAUSAR, ELIMINAR) Y CONTRASEÑA ---
 class ActualizarAlojamientoRequest(BaseModel):
