@@ -190,6 +190,7 @@ button{cursor:pointer;background:none;border:0;padding:0}
 
   <div class="tabs" role="tablist">
     <button class="tab active" data-target="reservas">Mis reservaciones</button>
+    <button class="tab" data-target="favoritos">Mis favoritos</button>
     <button class="tab" data-target="historial">Historial de viajes</button>
     <button class="tab" data-target="cuenta">Datos de la cuenta</button>
     <button class="tab" data-target="notificaciones">
@@ -203,6 +204,16 @@ button{cursor:pointer;background:none;border:0;padding:0}
       <h2>Próximas estancias</h2>
       <div id="listaReservasActivas">
         <p style="color:var(--muted)">Cargando reservaciones...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- PESTAÑA: FAVORITOS -->
+  <div class="tab-content" id="favoritos">
+    <div class="panel">
+      <h2>Alojamientos guardados</h2>
+      <div id="listaFavoritos">
+        <p style="color:var(--muted)">Cargando favoritos...</p>
       </div>
     </div>
   </div>
@@ -309,6 +320,49 @@ function renderTarjetaReserva(reserva) {
   `;
 }
 
+function renderTarjetaFavorito(item) {
+  const prop = item.alojamientos;
+  if (!prop) return '';
+  const imgUrl = (prop.imagenes && prop.imagenes.length > 0)
+    ? prop.imagenes[0]
+    : 'https://images.unsplash.com/photo-1542718610-a1d656d1884c?w=400';
+
+  return `
+    <div class="reservation-card" id="fav-${prop.id}">
+      <img src="${imgUrl}" alt="${prop.titulo}">
+      <div class="res-info">
+        <h3>${prop.titulo}</h3>
+        <p>${prop.tipo || 'Alojamiento'} · ${prop.direccion || 'Capulálpam de Méndez'}</p>
+        <p><strong>$${Number(prop.precio_noche).toLocaleString('es-MX')} MXN</strong> / noche · ${prop.capacidad_huespedes} huéspedes</p>
+      </div>
+      <div class="res-actions">
+        <a class="btn btn-primary" href="propiedad.html?id=${prop.id}">Ver alojamiento</a>
+        <button class="btn btn-danger" onclick="quitarFavorito('${prop.id}')">Quitar de favoritos</button>
+      </div>
+    </div>
+  `;
+}
+
+async function quitarFavorito(alojamientoId) {
+  const jwt = localStorage.getItem('jwt');
+  try {
+    const res = await fetch(`${API_URL}/api/favoritos/${alojamientoId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    if (res.ok) {
+      const card = document.getElementById(`fav-${alojamientoId}`);
+      if (card) card.remove();
+      const cont = document.getElementById('listaFavoritos');
+      if (cont && !cont.querySelector('.reservation-card')) {
+        cont.innerHTML = '<p style="color:var(--muted);">Aún no tienes alojamientos guardados en favoritos.</p>';
+      }
+    }
+  } catch (e) {
+    console.error('Error quitando favorito:', e);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const jwt = localStorage.getItem('jwt');
   if (!jwt) {
@@ -362,6 +416,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (error) {
     console.error('Error cargando reservaciones:', error);
     document.getElementById('listaReservasActivas').innerHTML = '<p style="color:var(--rose);">Ocurrió un error al cargar tus reservaciones.</p>';
+  }
+
+  // 3. Cargar favoritos desde FastAPI
+  try {
+    const resFav = await fetch(`${API_URL}/api/favoritos`, {
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    const dataFav = await resFav.json();
+    const contFav = document.getElementById('listaFavoritos');
+    const lista = dataFav.favoritos || [];
+
+    contFav.innerHTML = lista.length
+      ? lista.map(renderTarjetaFavorito).join('')
+      : '<p style="color:var(--muted);">Aún no tienes alojamientos guardados en favoritos.</p>';
+  } catch (error) {
+    console.error('Error cargando favoritos:', error);
+    document.getElementById('listaFavoritos').innerHTML = '<p style="color:var(--rose);">Ocurrió un error al cargar tus favoritos.</p>';
   }
 });
 

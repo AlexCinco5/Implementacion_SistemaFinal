@@ -183,6 +183,23 @@ const API_URL = (window.location.hostname === 'localhost' || window.location.pro
 let tipoActual = '';
 let mapa = null;
 let capaMarcadores = null;
+let favoritosIds = new Set();
+
+async function cargarFavoritos() {
+  const jwt = localStorage.getItem('jwt');
+  if (!jwt) return;
+  try {
+    const res = await fetch(`${API_URL}/api/favoritos`, {
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      favoritosIds = new Set(data.ids || []);
+    }
+  } catch (e) {
+    console.error('Error cargando favoritos:', e);
+  }
+}
 
 // Coordenadas reales de Capulalpam de Mendez, Oaxaca
 const CENTRO_CAPULALPAM = [17.3056, -96.4450];
@@ -248,12 +265,37 @@ function actualizarMarcadores(propiedades, queryStr) {
   }
 }
 
-document.addEventListener('click', function(e){
+document.addEventListener('click', async function(e){
   const btn = e.target.closest('.heart');
-  if(btn){
-    e.preventDefault();
-    e.stopPropagation();
-    btn.classList.toggle('is-active');
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  const jwt = localStorage.getItem('jwt');
+  if (!jwt) {
+    alert('Inicia sesión para guardar alojamientos en tus favoritos.');
+    window.location.href = 'login.html';
+    return;
+  }
+
+  const propId = btn.dataset.id;
+  if (!propId) return;
+
+  const yaEsFavorito = btn.classList.contains('is-active');
+  const metodo = yaEsFavorito ? 'DELETE' : 'POST';
+
+  try {
+    const res = await fetch(`${API_URL}/api/favoritos/${propId}`, {
+      method: metodo,
+      headers: { 'Authorization': `Bearer ${jwt}` }
+    });
+    if (res.ok) {
+      btn.classList.toggle('is-active');
+      if (yaEsFavorito) favoritosIds.delete(propId);
+      else favoritosIds.add(propId);
+    }
+  } catch (err) {
+    console.error('Error actualizando favorito:', err);
   }
 });
 
@@ -325,13 +367,14 @@ async function cargarAlojamientos() {
         : 'https://images.unsplash.com/photo-1542718610-a1d656d1884c?w=900';
 
       const linkDetalle = `propiedad.html?id=${prop.id}${queryFechas.toString() ? '&' + queryFechas.toString() : ''}`;
+      const favClass = favoritosIds.has(prop.id) ? 'is-active' : '';
 
       contenedor.innerHTML += `
         <a class="card" href="${linkDetalle}">
           <div class="photo">
             <img src="${urlImagen}" alt="${prop.titulo}">
             <span class="tag">${prop.tipo || 'Alojamiento'}</span>
-            <button class="heart" type="button" aria-label="Guardar en favoritos">
+            <button class="heart ${favClass}" data-id="${prop.id}" type="button" aria-label="Guardar en favoritos">
               <svg viewBox="0 0 32 32"><path d="M16 28c7-4.7 14-10.2 14-17a7 7 0 0 0-14-1.4A7 7 0 0 0 2 11c0 6.8 7 12.3 14 17Z"/></svg>
             </button>
           </div>
@@ -384,7 +427,7 @@ const gestionarSesion = () => {
 
 gestionarSesion();
 inicializarMapa();
-cargarAlojamientos();
+cargarFavoritos().then(() => cargarAlojamientos());
 </script>
 <script src="notificaciones.js"></script>
 </body>

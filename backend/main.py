@@ -1167,6 +1167,36 @@ def cambiar_mi_password(datos: CambiarPasswordRequest, usuario = Depends(obtener
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"No se pudo actualizar la contraseña: {str(e)}")
 
+# --- BLOQUE 7: FAVORITOS ---
+@app.get("/api/favoritos")
+def listar_favoritos(usuario = Depends(obtener_usuario_actual)):
+    res = (
+        supabase.table("favoritos")
+        .select("id, alojamiento_id, creado_en, alojamientos(*)")
+        .eq("usuario_id", usuario["id"])
+        .order("creado_en", desc=True)
+        .execute()
+    )
+    items = res.data or []
+    ids = [item["alojamiento_id"] for item in items]
+    return {"ids": ids, "favoritos": items}
+
+@app.post("/api/favoritos/{alojamiento_id}")
+def agregar_favorito(alojamiento_id: str, usuario = Depends(obtener_usuario_actual)):
+    try:
+        supabase.table("favoritos").upsert(
+            {"usuario_id": usuario["id"], "alojamiento_id": alojamiento_id},
+            on_conflict="usuario_id,alojamiento_id"
+        ).execute()
+        return {"es_favorito": True, "alojamiento_id": alojamiento_id}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo guardar en favoritos: {str(e)}")
+
+@app.delete("/api/favoritos/{alojamiento_id}")
+def quitar_favorito(alojamiento_id: str, usuario = Depends(obtener_usuario_actual)):
+    supabase.table("favoritos").delete().eq("usuario_id", usuario["id"]).eq("alojamiento_id", alojamiento_id).execute()
+    return {"es_favorito": False, "alojamiento_id": alojamiento_id}
+
 # Servir la carpeta frontend desde FastAPI (debe ir al final del archivo)
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
 if os.path.exists(frontend_dir):
