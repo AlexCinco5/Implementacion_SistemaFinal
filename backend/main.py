@@ -1197,11 +1197,6 @@ def quitar_favorito(alojamiento_id: str, usuario = Depends(obtener_usuario_actua
     supabase.table("favoritos").delete().eq("usuario_id", usuario["id"]).eq("alojamiento_id", alojamiento_id).execute()
     return {"es_favorito": False, "alojamiento_id": alojamiento_id}
 
-# Servir la carpeta frontend desde FastAPI (debe ir al final del archivo)
-frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
-if os.path.exists(frontend_dir):
-    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
-
 # --- BLOQUE 8: GESTIÓN DE ADMINISTRADORES ---
 class CrearAdminRequest(BaseModel):
     nombre_completo: str
@@ -1266,3 +1261,8 @@ def quitar_administrador(admin_id: str, usuario = Depends(requerir_admin)):
     if not res.data:
         raise HTTPException(status_code=404, detail="Administrador no encontrado.")
     return {"mensaje": "Permisos de administrador revocados correctamente."}
+
+# Servir la carpeta frontend desde FastAPI (debe ir al final del archivo)
+frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
+if os.path.exists(frontend_dir):
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
