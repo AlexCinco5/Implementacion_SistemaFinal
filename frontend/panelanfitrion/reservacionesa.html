@@ -8,14 +8,109 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+
 <style>
   .btn-sm{padding:6px 10px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:#fff;margin-left:4px}
   .btn-sm:disabled{opacity:.6;cursor:not-allowed}
   .btn-approve{background:#2d5a3d;color:#fff;border-color:#2d5a3d}
   .btn-reject{background:#fbeaea;color:#a94a4a;border-color:#f5c2c2}
   .btn-view{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
+
+  /* ===== Calendario de ocupación ===== */
+  .panel.panel-cal{margin-bottom:32px}
+  .cal-body{padding:16px 20px 20px}
+  .cal-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .cal-title{font-family:'Montserrat',sans-serif;font-size:16px;font-weight:600;text-transform:capitalize;min-width:160px;text-align:center}
+  .cal-nav-btns{display:flex;align-items:center;gap:6px}
+  .cal-nav .btn-sm{margin-left:0}
+  .cal-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:14px}
+  .cal-legend span{display:inline-flex;align-items:center;gap:6px}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+  .cal-dow{text-align:center;font-size:12px;font-weight:600;color:var(--muted);padding-bottom:4px}
+  .cal-blank{min-height:72px}
+
+  .cal-day{min-height:72px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:6px 8px;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:6px;font:inherit;color:inherit;transition:border-color .15s,background .15s}
+  .cal-day:hover{border-color:#2d5a3d;background:#f7faf8}
+
+  /* ===== Fechas pasadas en gris ===== */
+  .cal-day.past,
+  .cal-day.past:hover{
+    background:#f1f2f3;
+    border-color:#e1e4e8;
+    color:#a0a6ad;
+    cursor:not-allowed;
+    box-shadow:none;
+  }
+
+  .cal-day.past .cal-num{
+    color:#a0a6ad;
+  }
+
+  .cal-day.past .cal-dots{
+    opacity:.65;
+  }
+
+  .cal-day:disabled{
+    pointer-events:none;
+  }
+
+  .cal-day:focus-visible{outline:2px solid #2d5a3d;outline-offset:2px}
+  .cal-nav-btns .btn-sm:disabled{opacity:.35;cursor:not-allowed}
+
+  .cal-day.sel{border-color:#2d5a3d;box-shadow:0 0 0 2px rgba(45,90,61,.18);background:#f7faf8}
+  .cal-num{font-size:13px;font-weight:600;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%}
+  .cal-day.today .cal-num{background:#2d5a3d;color:#fff}
+  .cal-dots{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+  .dot.confirmada,.dot.completada{background:#2d5a3d}
+  .dot.en_revision{background:#c8912f}
+  .dot.pendiente_pago{background:#9aa7b8}
+  .dot-more{font-size:11px;font-weight:600;color:var(--muted)}
+
+  /* ===== Ventana (modal) del día ===== */
+  .cal-modal{position:fixed;inset:0;z-index:2000;background:rgba(20,28,24,.45);display:flex;align-items:center;justify-content:center;padding:16px;animation:calFade .15s ease-out}
+  .cal-modal[hidden]{display:none}
+  .cal-modal-card{background:#fff;border-radius:14px;width:100%;max-width:560px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.25);animation:calPop .18s ease-out}
+  .cal-modal-head{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--line)}
+  .cal-modal-title{flex:1;text-align:center;min-width:0}
+  .cal-modal-title h4{margin:0;font-family:'Montserrat',sans-serif;font-size:15px;font-weight:600;text-transform:capitalize}
+  .cal-modal-title small{color:var(--muted);font-size:12px}
+  .cal-modal-head .btn-sm{margin-left:0;width:34px;height:34px;padding:0;font-size:16px;line-height:1;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .cal-modal-close{margin-left:6px !important}
+  .cal-modal-body{padding:16px;overflow-y:auto}
+  .cal-hint{color:var(--muted);font-size:13px;text-align:center;padding:12px 0}
+  .cal-item{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 12px;margin-bottom:8px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;text-align:left;font:inherit;color:inherit;transition:border-color .15s,background .15s}
+  .cal-item:last-child{margin-bottom:0}
+  .cal-item:hover{border-color:#2d5a3d;background:#f7faf8}
+  .cal-item:focus-visible{outline:2px solid #2d5a3d;outline-offset:2px}
+  .cal-item small{color:var(--muted)}
+  .cal-item-end{display:flex;align-items:center;gap:12px}
+
+  @keyframes calFade{from{opacity:0}to{opacity:1}}
+  @keyframes calPop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+
+  /* Resalta la fila a la que se navega desde el calendario */
+  @keyframes resaltarFila{from{background:#fff3cd}to{background:transparent}}
+  tr.fila-resaltada td{animation:resaltarFila 2.2s ease-out}
+
+  @media (max-width:640px){
+    .cal-body{padding:12px}
+    .cal-grid{gap:3px}
+    .cal-day,.cal-blank{min-height:52px;padding:4px}
+    .cal-num{font-size:12px;width:22px;height:22px}
+    .dot{width:7px;height:7px}
+    .cal-dots{gap:3px}
+    .cal-modal{align-items:flex-end;padding:0}
+    .cal-modal-card{max-width:100%;border-radius:16px 16px 0 0;max-height:80vh}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    .cal-modal,.cal-modal-card{animation:none}
+    tr.fila-resaltada td{animation:none;background:#fff3cd}
+  }
 </style>
 </head>
+
 <body>
 
 <div class="shell">
@@ -37,8 +132,35 @@
       <div class="stat"><div class="label">Expiradas / Canceladas</div><div class="value" id="stCanc">0</div></div>
     </div>
 
+    <!-- Calendario de ocupación -->
+    <div class="panel panel-cal">
+      <div class="panel-head"><h3>Calendario de ocupación</h3></div>
+
+      <div class="cal-body">
+        <div class="cal-nav">
+          <div class="cal-nav-btns">
+            <button class="btn-sm" type="button" id="calPrev" aria-label="Mes anterior">‹</button>
+            <button class="btn-sm" type="button" id="calHoy">Hoy</button>
+            <button class="btn-sm" type="button" id="calNext" aria-label="Mes siguiente">›</button>
+          </div>
+
+          <div class="cal-title" id="calTitulo" aria-live="polite"></div>
+          <div style="min-width:112px"></div>
+        </div>
+
+        <div class="cal-grid" id="calGrid"></div>
+
+        <div class="cal-legend">
+          <span><i class="dot confirmada"></i> Confirmada</span>
+          <span><i class="dot en_revision"></i> Comprobante recibido</span>
+          <span><i class="dot pendiente_pago"></i> Esperando SPEI</span>
+        </div>
+      </div>
+    </div>
+
     <div class="panel">
       <div class="panel-head"><h3>Todas mis reservaciones</h3></div>
+
       <table class="table">
         <thead>
           <tr>
@@ -50,6 +172,7 @@
             <th>Acciones SPEI</th>
           </tr>
         </thead>
+
         <tbody id="tablaReservas">
           <tr><td colspan="6" style="text-align:center;color:var(--muted)">Cargando...</td></tr>
         </tbody>
@@ -63,6 +186,25 @@
   </main>
 </div>
 
+<!-- Ventana del día -->
+<div class="cal-modal" id="calModal" hidden>
+  <div class="cal-modal-card" role="dialog" aria-modal="true" aria-labelledby="calModalTitulo">
+    <div class="cal-modal-head">
+      <button class="btn-sm" type="button" id="calDiaPrev" aria-label="Día anterior">‹</button>
+
+      <div class="cal-modal-title">
+        <h4 id="calModalTitulo"></h4>
+        <small id="calModalSub"></small>
+      </div>
+
+      <button class="btn-sm" type="button" id="calDiaNext" aria-label="Día siguiente">›</button>
+      <button class="btn-sm cal-modal-close" type="button" id="calModalCerrar" aria-label="Cerrar">✕</button>
+    </div>
+
+    <div class="cal-modal-body" id="calModalBody"></div>
+  </div>
+</div>
+
 <script>
 const API_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8000' : '';
 const jwt = localStorage.getItem('jwt');
@@ -74,127 +216,663 @@ if (!jwt || rol !== 'anfitrion') {
 }
 
 const authHeaders = { 'Authorization': `Bearer ${jwt}` };
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({
+  '&':'&amp;',
+  '<':'&lt;',
+  '>':'&gt;',
+  '"':'&quot;',
+  "'":'&#39;'
+}[c]));
+
+/* =====================================================
+   CALENDARIO DE OCUPACIÓN
+   - Un punto por reservación en cada noche ocupada
+     (de fecha_entrada a fecha_salida - 1; el día de salida queda libre).
+   - Solo cuentan estados que bloquean fechas.
+   ===================================================== */
+
+const ESTADOS_OCUPAN = ['pendiente_pago', 'en_revision', 'confirmada', 'completada'];
+const MAX_PUNTOS = 4;
+
+const NOMBRE_ESTADO = {
+  confirmada: 'Confirmada',
+  completada: 'Completada',
+  en_revision: 'Comprobante recibido',
+  pendiente_pago: 'Esperando SPEI'
+};
+
+let reservasLista = [];
+let mapaDias = {};
+
+const hoy = new Date();
+
+let calAnio = hoy.getFullYear();
+let calMes = hoy.getMonth();
+let diaSel = null;
+
+const claveDia = (y, m, d) =>
+  `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+const claveHoy = claveDia(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+const modal = document.getElementById('calModal');
+const modalAbierto = () => !modal.hidden;
+
+
+/* ===== Construir mapa de reservaciones ===== */
+
+function construirMapa() {
+  mapaDias = {};
+
+  reservasLista.forEach(r => {
+    if (!ESTADOS_OCUPAN.includes(r.estado)) return;
+
+    const ini = String(r.fecha_entrada || '').slice(0, 10).split('-').map(Number);
+    const fin = String(r.fecha_salida || '').slice(0, 10).split('-').map(Number);
+
+    if (ini.length !== 3 || fin.length !== 3 || ini.some(isNaN) || fin.some(isNaN)) return;
+
+    // Se usa UTC para evitar desfases por zona horaria / horario de verano
+    let t = Date.UTC(ini[0], ini[1] - 1, ini[2]);
+    const tFin = Date.UTC(fin[0], fin[1] - 1, fin[2]);
+
+    while (t < tFin) {
+      const k = new Date(t).toISOString().slice(0, 10);
+
+      (mapaDias[k] = mapaDias[k] || []).push(r);
+
+      t += 86400000;
+    }
+  });
+}
+
+
+/* ===== Renderizar calendario ===== */
+
+function renderCalendario() {
+  const titulo = new Date(calAnio, calMes, 1).toLocaleDateString('es-MX', {
+    month: 'long',
+    year: 'numeric'
+  });
+
+  document.getElementById('calTitulo').textContent = titulo;
+
+  const primerDia = new Date(calAnio, calMes, 1).getDay();
+  const totalDias = new Date(calAnio, calMes + 1, 0).getDate();
+
+  let html = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+    .map(d => `<div class="cal-dow">${d}</div>`).join('');
+
+  for (let i = 0; i < primerDia; i++) {
+    html += '<div class="cal-blank"></div>';
+  }
+
+  for (let d = 1; d <= totalDias; d++) {
+
+    const k = claveDia(calAnio, calMes, d);
+
+    const reservas = mapaDias[k] || [];
+    const visibles = reservas.slice(0, MAX_PUNTOS);
+    const extra = reservas.length - visibles.length;
+
+    const puntos = visibles.map(r =>
+      `<i class="dot ${esc(r.estado)}"></i>`
+    ).join('') + (extra > 0 ? `<span class="dot-more">+${extra}</span>` : '');
+
+    // Comprobar si la fecha ya pasó
+    const esPasado = k < claveHoy;
+
+    const clases = ['cal-day'];
+
+    if (esPasado) clases.push('past');
+    if (k === claveHoy) clases.push('today');
+    if (k === diaSel) clases.push('sel');
+
+    const etiqueta = `${d} de ${titulo}: ${reservas.length} reservación${reservas.length === 1 ? '' : 'es'}${esPasado ? ', fecha pasada' : ''}`;
+
+    html += `
+      <button
+        type="button"
+        class="${clases.join(' ')}"
+        data-dia="${k}"
+        aria-label="${esc(etiqueta)}"
+        ${esPasado ? 'disabled aria-disabled="true"' : ''}
+      >
+        <span class="cal-num">${d}</span>
+        <span class="cal-dots">${puntos}</span>
+      </button>
+    `;
+  }
+
+  document.getElementById('calGrid').innerHTML = html;
+}
+
+
+/* ===== Ventana del día ===== */
+
+function renderModal() {
+
+  const [y, m, d] = diaSel.split('-').map(Number);
+
+  const fechaTxt = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('es-MX', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC'
+  });
+
+  const reservas = mapaDias[diaSel] || [];
+
+  document.getElementById('calModalTitulo').textContent = fechaTxt;
+
+  document.getElementById('calModalSub').textContent =
+    reservas.length
+      ? `${reservas.length} reservación${reservas.length === 1 ? '' : 'es'}`
+      : 'Sin reservaciones';
+
+  // Desactivar botón para ir al día anterior si estamos en hoy
+  const fechaAnterior = new Date(
+    Date.UTC(y, m - 1, d - 1)
+  ).toISOString().slice(0, 10);
+
+  document.getElementById('calDiaPrev').disabled =
+    fechaAnterior < claveHoy;
+
+  const body = document.getElementById('calModalBody');
+
+  if (!reservas.length) {
+    body.innerHTML = '<div class="cal-hint">No hay reservaciones para este día.</div>';
+    return;
+  }
+
+  body.innerHTML = reservas.map(r => `
+    <button type="button" class="cal-item" data-id="${esc(r.id)}">
+      <span>
+        <b>${esc(r.perfiles?.nombre_completo || 'Huésped')}</b><br>
+        <small>${esc(r.alojamientos?.titulo || 'Alojamiento')} · ${esc(r.fecha_entrada)} al ${esc(r.fecha_salida)}</small>
+      </span>
+
+      <span class="cal-item-end">
+        <span>
+          <i class="dot ${esc(r.estado)}"></i>
+          ${esc(NOMBRE_ESTADO[r.estado] || r.estado)}
+        </span>
+
+        <b>$${Number(r.total_pagar).toLocaleString('es-MX')}</b>
+      </span>
+    </button>
+  `).join('');
+
+  body.scrollTop = 0;
+}
+
+
+/* ===== Abrir día ===== */
+
+function abrirDia(k) {
+
+  // No permitir abrir fechas anteriores a hoy
+  if (k < claveHoy) return;
+
+  diaSel = k;
+
+  const [y, m] = k.split('-').map(Number);
+
+  calAnio = y;
+  calMes = m - 1;
+
+  renderCalendario();
+  renderModal();
+
+  modal.hidden = false;
+  document.body.style.overflow = 'hidden';
+
+  document.getElementById('calModalCerrar').focus();
+}
+
+
+/* ===== Cerrar ventana ===== */
+
+function cerrarModal() {
+
+  if (!modalAbierto()) return;
+
+  modal.hidden = true;
+  document.body.style.overflow = '';
+
+  const btnDia = document.querySelector(
+    `#calGrid button[data-dia="${diaSel}"]`
+  );
+
+  if (btnDia) btnDia.focus();
+}
+
+
+/* ===== Cambiar día ===== */
+
+function cambiarDia(delta) {
+
+  if (!diaSel) return;
+
+  const [y, m, d] = diaSel.split('-').map(Number);
+
+  const t = new Date(Date.UTC(y, m - 1, d + delta));
+
+  const nuevaClave = t.toISOString().slice(0, 10);
+
+  // No permitir retroceder a fechas pasadas
+  if (nuevaClave < claveHoy) return;
+
+  diaSel = nuevaClave;
+
+  calAnio = t.getUTCFullYear();
+  calMes = t.getUTCMonth();
+
+  renderCalendario();
+  renderModal();
+}
+
+
+// Cierra la ventana y baja a la fila de la reservación en la tabla, resaltándola.
+
+function irADetalleReserva(id) {
+
+  modal.hidden = true;
+  document.body.style.overflow = '';
+
+  const fila = document.getElementById('fila-' + id);
+
+  if (!fila) return;
+
+  fila.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center'
+  });
+
+  fila.classList.remove('fila-resaltada');
+
+  void fila.offsetWidth;
+
+  fila.classList.add('fila-resaltada');
+}
+
+
+/* ===== Cambiar mes ===== */
+
+function cambiarMes(delta) {
+
+  calMes += delta;
+
+  if (calMes < 0) {
+    calMes = 11;
+    calAnio--;
+  }
+
+  if (calMes > 11) {
+    calMes = 0;
+    calAnio++;
+  }
+
+  renderCalendario();
+}
+
+
+/* ===== Eventos del calendario ===== */
+
+document.getElementById('calPrev').addEventListener('click', () => {
+  cambiarMes(-1);
+});
+
+document.getElementById('calNext').addEventListener('click', () => {
+  cambiarMes(1);
+});
+
+document.getElementById('calHoy').addEventListener('click', () => {
+
+  calAnio = hoy.getFullYear();
+  calMes = hoy.getMonth();
+  diaSel = claveHoy;
+
+  renderCalendario();
+});
+
+document.getElementById('calGrid').addEventListener('click', (e) => {
+
+  const btn = e.target.closest('button[data-dia]');
+
+  if (btn && !btn.disabled) {
+    abrirDia(btn.dataset.dia);
+  }
+});
+
+document.getElementById('calDiaPrev').addEventListener('click', () => {
+  cambiarDia(-1);
+});
+
+document.getElementById('calDiaNext').addEventListener('click', () => {
+  cambiarDia(1);
+});
+
+document.getElementById('calModalCerrar').addEventListener('click', cerrarModal);
+
+modal.addEventListener('click', (e) => {
+  if (e.target === modal) cerrarModal();
+});
+
+document.getElementById('calModalBody').addEventListener('click', (e) => {
+
+  const item = e.target.closest('button[data-id]');
+
+  if (item) {
+    irADetalleReserva(item.dataset.id);
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+
+  if (!modalAbierto()) return;
+
+  if (e.key === 'Escape') {
+    cerrarModal();
+  } else if (e.key === 'ArrowLeft') {
+    cambiarDia(-1);
+  } else if (e.key === 'ArrowRight') {
+    cambiarDia(1);
+  }
+});
+
+
+/* =====================================================
+   CARGAR RESERVACIONES
+   ===================================================== */
 
 async function cargarReservas() {
+
   try {
-    const res = await fetch(`${API_URL}/api/anfitrion/reservaciones`, { headers: authHeaders });
+
+    const res = await fetch(
+      `${API_URL}/api/anfitrion/reservaciones`,
+      { headers: authHeaders }
+    );
+
     if (res.status === 401 || res.status === 403) {
+
       localStorage.removeItem('jwt');
       window.location.href = '../login.html';
+
       return;
     }
+
     const lista = await res.json();
 
     const navCount = document.getElementById('navCount');
-    if (navCount) navCount.textContent = lista.length;
+
+    if (navCount) {
+      navCount.textContent = lista.length;
+    }
+
     sessionStorage.setItem('en_host_res', String(lista.length));
 
-    document.getElementById('stRev').textContent = lista.filter(r => r.estado === 'en_revision').length;
-    document.getElementById('stConf').textContent = lista.filter(r => r.estado === 'confirmada' || r.estado === 'completada').length;
-    document.getElementById('stPend').textContent = lista.filter(r => r.estado === 'pendiente_pago').length;
-    document.getElementById('stCanc').textContent = lista.filter(r => r.estado === 'cancelada' || r.estado === 'expirada').length;
+    document.getElementById('stRev').textContent =
+      lista.filter(r => r.estado === 'en_revision').length;
 
+    document.getElementById('stConf').textContent =
+      lista.filter(r => r.estado === 'confirmada' || r.estado === 'completada').length;
+
+    document.getElementById('stPend').textContent =
+      lista.filter(r => r.estado === 'pendiente_pago').length;
+
+    document.getElementById('stCanc').textContent =
+      lista.filter(r => r.estado === 'cancelada' || r.estado === 'expirada').length;
+
+
+    // Calendario
+    reservasLista = lista;
+
+    construirMapa();
+    renderCalendario();
+
+    if (modalAbierto()) {
+      renderModal();
+    }
+
+
+    // Tabla de reservaciones
     const tbody = document.getElementById('tablaReservas');
+
     if (!lista.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Aún no hay reservaciones en tus alojamientos.</td></tr>';
+
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align:center;color:var(--muted)">
+            Aún no hay reservaciones en tus alojamientos.
+          </td>
+        </tr>
+      `;
+
       return;
     }
 
     tbody.innerHTML = lista.map(r => {
+
       const h = r.perfiles?.nombre_completo || 'Huésped';
+
       let badge = `<span class="badge pending">${esc(r.estado)}</span>`;
-      if (r.estado === 'confirmada') badge = '<span class="badge confirmed">Confirmada</span>';
-      else if (r.estado === 'completada') badge = '<span class="badge confirmed">Completada</span>';
-      else if (r.estado === 'en_revision') badge = '<span class="badge pending">Comprobante recibido</span>';
-      else if (r.estado === 'pendiente_pago') badge = '<span class="badge pending">Esperando SPEI (15m)</span>';
-      else if (r.estado === 'expirada' || r.estado === 'cancelada') badge = `<span class="badge cancelled">${esc(r.estado)}</span>`;
+
+      if (r.estado === 'confirmada') {
+        badge = '<span class="badge confirmed">Confirmada</span>';
+      }
+      else if (r.estado === 'completada') {
+        badge = '<span class="badge confirmed">Completada</span>';
+      }
+      else if (r.estado === 'en_revision') {
+        badge = '<span class="badge pending">Comprobante recibido</span>';
+      }
+      else if (r.estado === 'pendiente_pago') {
+        badge = '<span class="badge pending">Esperando SPEI (15m)</span>';
+      }
+      else if (r.estado === 'expirada' || r.estado === 'cancelada') {
+        badge = `<span class="badge cancelled">${esc(r.estado)}</span>`;
+      }
+
 
       let acciones = '<span style="color:var(--muted);font-size:12px">—</span>';
+
       if (r.comprobante_url) {
-        acciones = `<button class="btn-sm btn-view" type="button" data-accion="ver" data-id="${esc(r.id)}">Ver recibo</button>`;
+
+        acciones = `
+          <button class="btn-sm btn-view" type="button"
+            data-accion="ver" data-id="${esc(r.id)}">
+            Ver recibo
+          </button>
+        `;
+
         if (r.estado === 'en_revision') {
+
           acciones += `
-            <button class="btn-sm btn-approve" type="button" data-accion="aprobar" data-id="${esc(r.id)}">Aprobar</button>
-            <button class="btn-sm btn-reject" type="button" data-accion="rechazar" data-id="${esc(r.id)}">Rechazar</button>
+            <button class="btn-sm btn-approve" type="button"
+              data-accion="aprobar" data-id="${esc(r.id)}">
+              Aprobar
+            </button>
+
+            <button class="btn-sm btn-reject" type="button"
+              data-accion="rechazar" data-id="${esc(r.id)}">
+              Rechazar
+            </button>
           `;
         }
       }
 
       return `
-        <tr>
-          <td><b>${esc(h)}</b><br><small style="color:var(--muted)">${esc(r.perfiles?.telefono || r.perfiles?.correo || '')}</small></td>
+        <tr id="fila-${esc(r.id)}">
+
+          <td>
+            <b>${esc(h)}</b><br>
+            <small style="color:var(--muted)">
+              ${esc(r.perfiles?.telefono || r.perfiles?.correo || '')}
+            </small>
+          </td>
+
           <td>${esc(r.alojamientos?.titulo || 'Alojamiento')}</td>
+
           <td>${esc(r.fecha_entrada)} al ${esc(r.fecha_salida)}</td>
+
           <td>${badge}</td>
-          <td class="price-cell">$${Number(r.total_pagar).toLocaleString('es-MX')}</td>
-          <td style="text-align:right;white-space:nowrap">${acciones}</td>
+
+          <td class="price-cell">
+            $${Number(r.total_pagar).toLocaleString('es-MX')}
+          </td>
+
+          <td style="text-align:right;white-space:nowrap">
+            ${acciones}
+          </td>
+
         </tr>
       `;
+
     }).join('');
+
   } catch (e) {
+
     console.error(e);
-    document.getElementById('tablaReservas').innerHTML =
-      '<tr><td colspan="6" style="text-align:center;color:var(--muted)">No se pudieron cargar las reservaciones.</td></tr>';
+
+    document.getElementById('tablaReservas').innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;color:var(--muted)">
+          No se pudieron cargar las reservaciones.
+        </td>
+      </tr>
+    `;
   }
 }
 
+
+/* ===== Ver comprobante ===== */
+
 async function verComprobante(id) {
+
   // Se abre la pestaña de inmediato para que el navegador no la bloquee
   const win = window.open('', '_blank');
+
   try {
-    const res = await fetch(`${API_URL}/api/anfitrion/reservaciones/${encodeURIComponent(id)}/comprobante`, { headers: authHeaders });
+
+    const res = await fetch(
+      `${API_URL}/api/anfitrion/reservaciones/${encodeURIComponent(id)}/comprobante`,
+      { headers: authHeaders }
+    );
+
     const data = await res.json().catch(() => ({}));
+
     if (res.ok && data.url) {
-      if (win) win.location.href = data.url;
-      else window.location.href = data.url;
+
+      if (win) {
+        win.location.href = data.url;
+      } else {
+        window.location.href = data.url;
+      }
+
     } else {
+
       if (win) win.close();
+
       alert(data.detail || `No se pudo abrir el comprobante (error ${res.status}).`);
     }
+
   } catch (e) {
+
     if (win) win.close();
+
     alert('Error al obtener el comprobante.');
   }
 }
 
+
+/* ===== Validar reservación ===== */
+
 async function validarReserva(id, accion, btn) {
+
   const texto = accion === 'aprobar'
     ? '¿Confirmar que el pago SPEI fue recibido?'
     : '¿Rechazar comprobante y liberar las fechas?';
+
   if (!confirm(texto)) return;
 
-  const notas = accion === 'rechazar' ? (prompt('Motivo del rechazo (opcional):') || '') : 'Pago verificado';
+  const notas = accion === 'rechazar'
+    ? (prompt('Motivo del rechazo (opcional):') || '')
+    : 'Pago verificado';
+
   if (btn) btn.disabled = true;
+
   try {
-    const res = await fetch(`${API_URL}/api/anfitrion/reservaciones/${encodeURIComponent(id)}/validar`, {
-      method: 'PUT',
-      headers: { ...authHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accion, notas_admin: notas })
-    });
+
+    const res = await fetch(
+      `${API_URL}/api/anfitrion/reservaciones/${encodeURIComponent(id)}/validar`,
+      {
+        method: 'PUT',
+        headers: {
+          ...authHeaders,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          accion,
+          notas_admin: notas
+        })
+      }
+    );
+
     if (res.ok) {
-      alert(accion === 'aprobar' ? '¡Reservación confirmada!' : 'Reservación rechazada y fechas liberadas.');
+
+      alert(
+        accion === 'aprobar'
+          ? '¡Reservación confirmada!'
+          : 'Reservación rechazada y fechas liberadas.'
+      );
+
     } else {
+
       const err = await res.json().catch(() => ({}));
+
       alert(err.detail || `Error al actualizar (${res.status}).`);
     }
+
   } catch (e) {
+
     alert('Error de conexión.');
   }
+
   cargarReservas();
 }
 
+
+/* ===== Eventos de la tabla ===== */
+
 document.getElementById('tablaReservas').addEventListener('click', (e) => {
+
   const btn = e.target.closest('button[data-accion]');
+
   if (!btn) return;
+
   const { accion, id } = btn.dataset;
-  if (accion === 'ver') verComprobante(id);
-  else validarReserva(id, accion, btn);
+
+  if (accion === 'ver') {
+    verComprobante(id);
+  } else {
+    validarReserva(id, accion, btn);
+  }
 });
 
+
+/* ===== Inicialización ===== */
+
+renderCalendario();
 cargarReservas();
+
 </script>
+
 <script src="../notificaciones.js"></script>
 <script src="sidebar.js"></script>
+
 </body>
 </html>
